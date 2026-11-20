@@ -34,6 +34,8 @@ export function TerminalView({ agent, sessionId, themeKey }: { agent: AgentId; s
       fontSize: 13,
       cursorBlink: true,
       convertEol: false,
+      // CLIs como o Codex capturam o mouse; ⌥ Option (macOS) / Shift (outros) força a seleção de texto.
+      macOptionClickForcesSelection: true,
       theme: themeFromCss(),
     });
     const fit = new FitAddon();

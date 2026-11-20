@@ -12,7 +12,7 @@ export interface FakeResponse {
   /** Cria outras CLIs falsas no mesmo diretório (simula uma instalação). */
   create?: Record<string, FakeToolSpec>;
   /** Modo interativo (para PTY): eco de linhas, comandos "flood", "env", "exit". */
-  interactive?: { banner?: string; ignoreSigint?: boolean; ignoreSigterm?: boolean; noBracketedPaste?: boolean };
+  interactive?: { banner?: string; ignoreSigint?: boolean; ignoreSigterm?: boolean; noBracketedPaste?: boolean; mouseTracking?: boolean };
 }
 export type FakeToolSpec = Record<string, FakeResponse> & { '*'?: FakeResponse };
 
@@ -91,7 +91,7 @@ if (r.interactive) {
   if (!it.noBracketedPaste && process.stdin.isTTY) {
     // Como as CLIs reais: modo raw, colagem delimitada (ESC[?2004h) e Enter só pelo teclado.
     process.stdin.setRawMode(true);
-    process.stdout.write('\\x1b[?2004h');
+    process.stdout.write('\\x1b[?2004h' + (it.mouseTracking ? '\\x1b[?1000h\\x1b[?1002h\\x1b[?1006h' : ''));
     let pasting = false;
     process.stdin.on('data', (d) => {
       let s = d;
@@ -99,6 +99,8 @@ if (r.interactive) {
         if (s.startsWith('\\x1b[200~')) { pasting = true; s = s.slice(6); continue; }
         if (s.startsWith('\\x1b[201~')) { pasting = false; s = s.slice(6); continue; }
         if (s.startsWith('\\x1b[I') || s.startsWith('\\x1b[O')) { s = s.slice(3); continue; }
+        const mouse = /^\\x1b\\[<\\d+;\\d+;\\d+[Mm]/.exec(s);
+        if (mouse) { s = s.slice(mouse[0].length); continue; }
         const ch = s[0]; s = s.slice(1);
         if (!pasting && ch === '\\x03') { process.stdout.write('^C[SIGINT]\\r\\n> '); if (!it.ignoreSigint) process.exit(130); continue; }
         if (!pasting && ch === '\\r') { process.stdout.write('\\r\\n'); const line = buf.trim(); buf = ''; if (line) handle(line); else process.stdout.write('> '); continue; }
@@ -141,13 +143,13 @@ export const SPECS = {
   }),
   node: (version = 'v22.12.0'): FakeToolSpec => ({ '--version': { stdout: `${version}\n` } }),
   /** CLI de agente interativa; o login "autentica" recriando a CLI com status logado. */
-  interactiveAgent: (agent: 'claude' | 'codex', opts: { loggedIn?: boolean; ignoreSigint?: boolean; ignoreSigterm?: boolean; noBracketedPaste?: boolean } = {}): FakeToolSpec => {
+  interactiveAgent: (agent: 'claude' | 'codex', opts: { loggedIn?: boolean; ignoreSigint?: boolean; ignoreSigterm?: boolean; noBracketedPaste?: boolean; mouseTracking?: boolean } = {}): FakeToolSpec => {
     const base = agent === 'claude' ? SPECS.claude(opts.loggedIn ?? true) : SPECS.codex(opts.loggedIn ?? true);
     const loggedInSpec: FakeToolSpec = { ...(agent === 'claude' ? SPECS.claude(true) : SPECS.codex(true)), '': { interactive: { banner: `${agent} falso` } } };
     const loginKey = agent === 'claude' ? 'auth login' : 'login';
     return {
       ...base,
-      '': { interactive: { banner: `${agent} falso`, ignoreSigint: opts.ignoreSigint, ignoreSigterm: opts.ignoreSigterm, noBracketedPaste: opts.noBracketedPaste } },
+      '': { interactive: { banner: `${agent} falso`, ignoreSigint: opts.ignoreSigint, ignoreSigterm: opts.ignoreSigterm, noBracketedPaste: opts.noBracketedPaste, mouseTracking: opts.mouseTracking } },
       [loginKey]: { stdout: 'Abrindo navegador… Login successful.\n', create: { [agent]: loggedInSpec } },
     };
   },

@@ -51,7 +51,19 @@ Referências: [04-AGENTES.md](04-AGENTES.md), [05-WORKSPACE.md](05-WORKSPACE.md)
 | O7 | ✅ | Unitário: presets só com flags oficiais (`--permission-mode plan`; `--sandbox read-only --ask-for-approval on-request`) e sem bypass; E2E: Codex falso recebe exatamente esses argumentos |
 | O8 | ✅ | Checklist do MVP em [01-ESCOPO.md](01-ESCOPO.md); versão `0.1.0`; `npm run check` verde |
 
-Totais: **86 testes unitários** e **24 E2E**, todos passando.
+Totais: **86 testes unitários** e **25 E2E**, todos passando.
+
+### Teste real de ponta a ponta (v0.1.0, contas do usuário)
+Repositório descartável com `math.js` (função `dobro`) e um `.env`; app compilado com ambiente real:
+1. Doctor: "Os dois agentes estão prontos" → workspace com Git `main`.
+2. Claude Code (padrão da CLI) como desenvolvedor; Codex em **somente leitura** como revisor.
+3. Tarefa "Adicionar função soma" (3 critérios) → texto colado no Claude → Enter → `soma(a, b)` criada em ~6 s, `dobro` intacta.
+4. Pedir revisão → pré-visualização com o diff de `math.js`, **sem** o conteúdo do `.env` → Codex revisou em ~5 s: os 3 critérios atendidos, nenhum arquivo alterado.
+5. Aprovação humana → registrada em `approvals` e `audit_logs`; o app não fez commit (só `math.js` modificado pelo Claude).
+6. Encaminhar uma linha do terminal do Codex para o Claude → chegou à caixa de entrada com o cabeçalho de procedência, sem ser enviada.
+7. Parar tudo → os dois encerrados (código 0), nenhum PID vivo. Ao reabrir, workspace e histórico restaurados.
+
+**Bug encontrado nesse teste e corrigido**: o Codex captura o mouse, então clicar no terminal dele não selecionava texto, e o botão "Encaminhar" do Codex ficava inutilizável. Correção: `macOptionClickForcesSelection` no xterm.js (segurar ⌥ Option no macOS; Shift no Windows/Linux força a seleção) e dica no botão. Teste E2E com uma CLI falsa que captura o mouse, confirmado falhando sem a correção.
 
 ## Decisões
 1. **Enviar = colar.** O app cola o texto (bracketed paste) e foca o terminal; quem submete é o Enter do usuário. Isso também impede que um texto encaminhado responda sozinho a um prompt de aprovação.
@@ -61,7 +73,7 @@ Totais: **86 testes unitários** e **24 E2E**, todos passando.
 5. **Diff de revisão** só por leitura (`git status`, `git diff`, `git diff --cached`) com pathspecs que excluem `.env*`, chaves e credenciais. A saída já passa por `redact()`, então chaves, tokens, e-mails e UUIDs chegam mascarados ao revisor, e o app avisa.
 6. **Máquina de estados**: rascunho → em desenvolvimento → em revisão → aprovada/rejeitada/cancelada; "pedir correções" volta para desenvolvimento e conta rodadas; no limite (padrão 3, configurável de 1 a 10) só restam decisões humanas.
 7. **Presets de permissão** com flags verificadas no `--help` das CLIs instaladas. O preset "padrão da CLI" não passa flag nenhuma (vale a configuração do usuário).
-8. Correções de UX encontradas nos testes: texto digitado durante um envio não é mais apagado; diálogos fechados não ficam no DOM.
+8. Correções de UX encontradas nos testes: texto digitado durante um envio não é mais apagado; diálogos fechados não ficam no DOM; seleção em CLIs que capturam o mouse com ⌥ Option/Shift.
 
 ## Limitações e pendências
 - Automação (Codex App Server) não implementada, por decisão.

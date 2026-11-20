@@ -173,3 +173,25 @@ test('sem colagem segura no programa, texto com várias linhas é recusado (não
   await expect(term(page, 'codex')).not.toContainText('eco:');
   await app.close();
 });
+
+test('CLI que captura o mouse (como o Codex): seleção com ⌥ Option/Shift habilita o encaminhamento', async () => {
+  tools.add('codex', SPECS.interactiveAgent('codex', { mouseTracking: true }));
+  const { app, page } = await launch(dir, { toolDir: tools.dir });
+  await setup(page, app);
+  await page.locator('[data-testid="terminal-codex"] .xterm').click();
+  await page.keyboard.type('revisao ok');
+  await page.keyboard.press('Enter');
+  await expect(term(page, 'codex')).toContainText('eco: revisao ok');
+  const line = page.locator('[data-testid="terminal-codex"] .xterm-rows > div', { hasText: 'eco: revisao ok' });
+  const box = (await line.boundingBox())!;
+  await page.mouse.click(box.x + 30, box.y + box.height / 2, { clickCount: 3 });
+  await expect(page.getByTestId('forward-codex')).toBeDisabled(); // clique foi para a CLI
+  const mod = process.platform === 'darwin' ? 'Alt' : 'Shift';
+  await page.keyboard.down(mod);
+  await page.mouse.click(box.x + 30, box.y + box.height / 2, { clickCount: 3 });
+  await page.keyboard.up(mod);
+  await expect(page.getByTestId('forward-codex')).toBeEnabled();
+  await page.getByTestId('forward-codex').click();
+  await expect(page.getByTestId('outbound-text')).toHaveValue(/eco: revisao ok/);
+  await app.close();
+});

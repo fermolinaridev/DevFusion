@@ -12,6 +12,8 @@ import { Button } from '../ui/Modal';
 
 const COLOR: Record<AgentId, string> = { claude: 'text-claude', codex: 'text-codex' };
 const OTHER: Record<AgentId, AgentId> = { claude: 'codex', codex: 'claude' };
+const IS_MAC = navigator.userAgent.includes('Mac');
+const SELECT_HINT = `Selecione texto no terminal para encaminhar. Se a CLI capturar o mouse (ex.: Codex), segure ${IS_MAC ? '⌥ Option' : 'Shift'} enquanto seleciona.`;
 const PERMISSION_LABEL: Record<PermissionPreset, string> = { 'cli-default': 'Permissões: padrão da CLI', 'read-only': 'Permissões: somente leitura' };
 const PERMISSION_HELP: Record<AgentId, string> = {
   claude: 'Somente leitura inicia com --permission-mode plan (planejamento, sem editar). Padrão da CLI usa suas configurações do Claude Code.',
@@ -69,7 +71,7 @@ export function AgentPane({ agent }: { agent: AgentId }) {
           {running && info?.kind === 'agent' && info.permission === 'read-only' && <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-muted" data-testid={`agent-permission-${agent}`}>somente leitura</span>}
           {running && (
             <Button key="forward" className="!px-2 !py-0.5 text-xs" disabled={!hasSelection} onClick={openForward} data-testid={`forward-${agent}`}
-              title={hasSelection ? `Encaminhar o texto selecionado para ${AGENT_NAMES[other]}` : 'Selecione texto no terminal para encaminhar'}>Encaminhar →</Button>
+              title={hasSelection ? `Encaminhar o texto selecionado para ${AGENT_NAMES[other]}` : SELECT_HINT}>Encaminhar →</Button>
           )}
           {running ? (
             <>
