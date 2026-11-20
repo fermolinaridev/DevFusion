@@ -1,6 +1,6 @@
 # Fase 7 — Estabilidade e beta
 
-Status: **concluída no macOS; CI Windows + Linux configurado** · Pré-requisito: Fase 6 aceita no macOS ([16-FASE6-UI.md](16-FASE6-UI.md)).
+Status: **concluída — CI verde no Windows e no Linux** (commit `734122b`) · Pré-requisito: Fase 6 aceita no macOS ([16-FASE6-UI.md](16-FASE6-UI.md)).
 Roadmap: "Unitários, integração e E2E; falhas, limites, recuperação, processos órfãos, logs sanitizados e revisão de segurança." Referência de testes: [08-SEGURANCA.md](08-SEGURANCA.md).
 
 ## Inspeção do repositório (início da fase)
@@ -61,7 +61,7 @@ Riscos aceitos e documentados:
 | S4 | ✅ | E2E: banco corrompido → mensagem, arquivo intacto, nada movido sem escolha; unitário da quarentena (renomeia com -wal/-shm); `uncaughtException`/`unhandledRejection` registrados |
 | S5 | ✅ | Unitário: log sanitizado e rotação (3 arquivos); E2E: diagnóstico exportado sem e-mail nem caminho da home |
 | S6 | ✅ | `npm run test:coverage`: 85,06% instruções, 71,58% ramos, 83,16% funções, 90,26% linhas (main + shared; ponto de entrada e config do Electron cobertos pelos E2E). `npm run test:real`: 3 testes com as CLIs reais, sem consumir cota |
-| S7 | ⏳ | **Windows verde no CI** (unitários, build e E2E). Linux: unitários e build verdes; E2E 36/39 → 38/39; o último (queda do renderer) corrigido no teste, aguardando a próxima execução |
+| S7 | ✅ | GitHub Actions verde em `windows-latest` e `ubuntu-latest` (typecheck, unitários, build e E2E) no commit `734122b`, após 4 execuções; falhas encontradas e corrigidas na tabela abaixo |
 | S8 | ✅ | 0 alertas |
 
 Totais locais: **118 testes unitários** e **39 E2E**.
@@ -80,5 +80,5 @@ Totais locais: **118 testes unitários** e **39 E2E**.
 
 ## Limitações
 - Windows validado só por CI (sem teste manual em máquina real); os testes com CLIs falsas por PTY ainda são pulados no Windows.
-- Linux: E2E depende da próxima execução do CI; sem teste manual em desktop real.
+- Linux validado só por CI (xvfb); sem teste manual em desktop real (Wayland, chaveiro do sistema, login pelo navegador).
 - Recuperação após queda do **main**: agentes são encerrados (não ficam órfãos), mas a sessão não é retomada automaticamente.

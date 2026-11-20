@@ -24,7 +24,7 @@ Aplicativo desktop local para utilizar Claude Code e Codex em uma única interfa
 - [Prompt de implementação](PROMPT.md)
 - [Instruções dos agentes](AGENTS.md) e [CLAUDE.md](CLAUDE.md)
 
-Estado atual: **beta 0.2.0-beta.1** (Fases 0–7), validada no macOS com Claude Pro e ChatGPT Plus. Windows e Linux são verificados pelo CI (GitHub Actions); veja o resultado na aba Actions do repositório.
+Estado atual: **beta 0.2.0-beta.1** (Fases 0–7), validada no macOS com Claude Pro e ChatGPT Plus. Windows e Linux passam no CI (GitHub Actions: typecheck, unitários, build e E2E); ainda sem teste manual nessas plataformas.
 
 O que já funciona:
 - **System Doctor** em toda abertura, onboarding e instalação assistida com confirmação.
