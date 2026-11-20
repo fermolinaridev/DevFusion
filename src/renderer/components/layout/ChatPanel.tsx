@@ -1,5 +1,10 @@
+import { useAgentStore } from '../../stores/agentStore';
+
 export function ChatPanel() {
-  const reason = 'Disponível quando os terminais dos agentes existirem (Fases 3 e 4).';
+  const reason = 'O chat compartilhado e o encaminhamento entre agentes chegam na Fase 4. Por enquanto use os terminais.';
+  const anyRunning = useAgentStore((s) => Object.values(s.sessions).some((x) => x?.status === 'running'));
+  const stoppingAll = useAgentStore((s) => s.stoppingAll);
+  const stopAll = useAgentStore((s) => s.stopAll);
   return (
     <section aria-label="Chat compartilhado" className="flex h-full flex-col bg-surface">
       <div className="flex h-8 shrink-0 items-center border-b border-border px-3 font-medium">Chat compartilhado</div>
@@ -12,7 +17,10 @@ export function ChatPanel() {
           <option>Destino</option>
         </select>
         <button type="submit" disabled className="rounded bg-accent px-3 text-accent-contrast disabled:opacity-50">Enviar</button>
-        <button type="button" disabled className="rounded border border-border px-3 disabled:opacity-50" title="Nenhum processo de agente em execução">Parar tudo</button>
+        <button type="button" disabled={!anyRunning || stoppingAll} onClick={() => void stopAll()} data-testid="stop-all"
+          className="rounded border border-border px-3 hover:bg-surface-2 disabled:opacity-50" title={anyRunning ? 'Encerra todos os processos de agentes' : 'Nenhum processo de agente em execução'}>
+          {stoppingAll ? 'Parando…' : 'Parar tudo'}
+        </button>
       </form>
     </section>
   );

@@ -1,5 +1,6 @@
 import type { CheckId, DocId, DoctorReport, InstallMethod, InstallState, InstallableDependency } from '../shared/doctor';
-import type { AppInfo, IpcResult } from '../shared/ipcContracts';
+import type { AgentId, AgentSessionInfo, SessionKind, WorkspaceInfo } from '../shared/agents';
+import type { ActionResult, AppInfo, IpcResult } from '../shared/ipcContracts';
 import type { Settings } from '../shared/settings';
 
 export interface DevFusionApi {
@@ -27,6 +28,26 @@ export interface DevFusionApi {
   };
   docs: {
     open(docId: DocId): Promise<IpcResult<boolean>>;
+  };
+  workspace: {
+    get(): Promise<IpcResult<WorkspaceInfo | null>>;
+    /** Abre o seletor nativo de pasta no main. */
+    choose(): Promise<IpcResult<ActionResult<WorkspaceInfo | null>>>;
+  };
+  agents: {
+    list(): Promise<IpcResult<AgentSessionInfo[]>>;
+    start(agent: AgentId, kind: SessionKind, cols: number, rows: number): Promise<IpcResult<ActionResult<AgentSessionInfo>>>;
+    interrupt(agent: AgentId): Promise<IpcResult<void>>;
+    stop(agent: AgentId): Promise<IpcResult<AgentSessionInfo>>;
+    stopAll(): Promise<IpcResult<AgentSessionInfo[]>>;
+    onState(cb: (info: AgentSessionInfo) => void): () => void;
+  };
+  terminal: {
+    write(agent: AgentId, data: string): Promise<IpcResult<void>>;
+    resize(agent: AgentId, cols: number, rows: number): Promise<IpcResult<void>>;
+    ack(agent: AgentId, bytes: number): Promise<IpcResult<void>>;
+    replay(agent: AgentId): Promise<IpcResult<string>>;
+    onData(cb: (payload: { agent: AgentId; data: string }) => void): () => void;
   };
 }
 

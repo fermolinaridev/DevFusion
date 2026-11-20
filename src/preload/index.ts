@@ -34,6 +34,25 @@ const api: DevFusionApi = Object.freeze({
   docs: Object.freeze({
     open: (docId: unknown) => ipcRenderer.invoke(IPC.docsOpen, { docId }),
   }),
+  workspace: Object.freeze({
+    get: () => ipcRenderer.invoke(IPC.workspaceGet),
+    choose: () => ipcRenderer.invoke(IPC.workspaceChoose),
+  }),
+  agents: Object.freeze({
+    list: () => ipcRenderer.invoke(IPC.agentsList),
+    start: (agent: unknown, kind: unknown, cols: unknown, rows: unknown) => ipcRenderer.invoke(IPC.agentStart, { agent, kind, cols, rows }),
+    interrupt: (agent: unknown) => ipcRenderer.invoke(IPC.agentInterrupt, { agent }),
+    stop: (agent: unknown) => ipcRenderer.invoke(IPC.agentStop, { agent }),
+    stopAll: () => ipcRenderer.invoke(IPC.agentsStopAll),
+    onState: (cb: (i: never) => void) => subscribe(IPC_EVENTS.agentState, cb),
+  }),
+  terminal: Object.freeze({
+    write: (agent: unknown, data: unknown) => ipcRenderer.invoke(IPC.terminalWrite, { agent, data }),
+    resize: (agent: unknown, cols: unknown, rows: unknown) => ipcRenderer.invoke(IPC.terminalResize, { agent, cols, rows }),
+    ack: (agent: unknown, bytes: unknown) => ipcRenderer.invoke(IPC.terminalAck, { agent, bytes }),
+    replay: (agent: unknown) => ipcRenderer.invoke(IPC.terminalReplay, { agent }),
+    onData: (cb: (p: never) => void) => subscribe(IPC_EVENTS.terminalData, cb),
+  }),
 } as DevFusionApi);
 
 contextBridge.exposeInMainWorld('devfusion', api);

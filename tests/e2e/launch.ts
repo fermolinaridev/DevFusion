@@ -49,3 +49,10 @@ export async function stubConfirmDialog(app: ElectronApplication, response: 0 | 
     (dialog as unknown as { showMessageBox: unknown }).showMessageBox = async () => ({ response: resp, checkboxChecked: false });
   }, response);
 }
+
+/** Substitui o seletor nativo de pasta no main para devolver `path` (ou cancelar com null). */
+export async function stubOpenDialog(app: ElectronApplication, path: string | null): Promise<void> {
+  await app.evaluate(({ dialog }, p) => {
+    (dialog as unknown as { showOpenDialog: unknown }).showOpenDialog = async () => ({ canceled: p === null, filePaths: p ? [p] : [] });
+  }, path);
+}

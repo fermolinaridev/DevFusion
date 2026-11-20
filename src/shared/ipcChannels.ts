@@ -11,6 +11,17 @@ export const IPC = {
   installerCancel: 'installer:cancel',
   installerOpenSource: 'installer:open-source',
   docsOpen: 'docs:open',
+  workspaceGet: 'workspace:get',
+  workspaceChoose: 'workspace:choose',
+  agentsList: 'agents:list',
+  agentStart: 'agent:start',
+  agentInterrupt: 'agent:interrupt',
+  agentStop: 'agent:stop',
+  agentsStopAll: 'agents:stop-all',
+  terminalWrite: 'terminal:write',
+  terminalResize: 'terminal:resize',
+  terminalAck: 'terminal:ack',
+  terminalReplay: 'terminal:replay',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -20,5 +31,7 @@ export const IPC_CHANNELS: readonly IpcChannel[] = Object.values(IPC);
 export const IPC_EVENTS = {
   doctorReport: 'event:doctor-report',
   installerState: 'event:installer-state',
+  agentState: 'event:agent-state',
+  terminalData: 'event:terminal-data',
 } as const;
 export type IpcEvent = (typeof IPC_EVENTS)[keyof typeof IPC_EVENTS];

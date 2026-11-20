@@ -11,6 +11,8 @@ export interface FakeResponse {
   sleepMs?: number;
   /** Cria outras CLIs falsas no mesmo diretório (simula uma instalação). */
   create?: Record<string, FakeToolSpec>;
+  /** Modo interativo (para PTY): eco de linhas, comandos "flood", "env", "exit". */
+  interactive?: { banner?: string; ignoreSigint?: boolean; ignoreSigterm?: boolean };
 }
 export type FakeToolSpec = Record<string, FakeResponse> & { '*'?: FakeResponse };
 
@@ -71,7 +73,28 @@ function create(name, s) {
     fs.chmodSync(l, 0o755);
   }
 }
-setTimeout(() => {
+if (r.interactive) {
+  const it = r.interactive;
+  process.stdout.write((it.banner || 'fake pronto') + '\\r\\n> ');
+  process.on('SIGINT', () => { process.stdout.write('[SIGINT]\\r\\n> '); if (!it.ignoreSigint) process.exit(130); });
+  process.on('SIGTERM', () => { if (!it.ignoreSigterm) process.exit(143); });
+  let buf = '';
+  process.stdin.setEncoding('utf8');
+  process.stdin.on('data', (d) => {
+    buf += d;
+    let i;
+    while ((i = buf.search(/[\\r\\n]/)) >= 0) {
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (!line) continue;
+      if (line === 'exit') process.exit(0);
+      else if (line === 'fail') process.exit(3);
+      else if (line === 'flood') { let out = ''; for (let n = 0; n < 20000; n++) out += 'linha ' + n + ' ' + 'x'.repeat(60) + '\\r\\n'; process.stdout.write(out); }
+      else if (line === 'env') process.stdout.write('cwd=' + process.cwd() + ' keys=' + Object.keys(process.env).filter((k) => /KEY|TOKEN|ANTHROPIC|OPENAI|CLAUDE_CODE/.test(k)).join(',') + ' term=' + process.env.TERM + '\\r\\n');
+      else process.stdout.write('eco: ' + line + '\\r\\n');
+      process.stdout.write('> ');
+    }
+  });
+} else setTimeout(() => {
   if (r.create) for (const [n, s] of Object.entries(r.create)) create(n, s);
   if (r.stdout) process.stdout.write(r.stdout);
   if (r.stderr) process.stderr.write(r.stderr);
@@ -95,4 +118,15 @@ export const SPECS = {
     'login status': loggedIn ? { stdout: 'Logged in using ChatGPT\n' } : { stderr: 'Not logged in\n', exitCode: 1 },
   }),
   node: (version = 'v22.12.0'): FakeToolSpec => ({ '--version': { stdout: `${version}\n` } }),
+  /** CLI de agente interativa; o login "autentica" recriando a CLI com status logado. */
+  interactiveAgent: (agent: 'claude' | 'codex', opts: { loggedIn?: boolean; ignoreSigint?: boolean; ignoreSigterm?: boolean } = {}): FakeToolSpec => {
+    const base = agent === 'claude' ? SPECS.claude(opts.loggedIn ?? true) : SPECS.codex(opts.loggedIn ?? true);
+    const loggedInSpec: FakeToolSpec = { ...(agent === 'claude' ? SPECS.claude(true) : SPECS.codex(true)), '': { interactive: { banner: `${agent} falso` } } };
+    const loginKey = agent === 'claude' ? 'auth login' : 'login';
+    return {
+      ...base,
+      '': { interactive: { banner: `${agent} falso`, ignoreSigint: opts.ignoreSigint, ignoreSigterm: opts.ignoreSigterm } },
+      [loginKey]: { stdout: 'Abrindo navegador… Login successful.\n', create: { [agent]: loggedInSpec } },
+    };
+  },
 };

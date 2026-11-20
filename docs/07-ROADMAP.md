@@ -27,8 +27,8 @@ Estimativa inicial de referência: 13 semanas de trabalho individual; não é pr
 - [x] Instalação assistida, onboarding, rechecagem e modo degradado. Ver [11-FASE2-SYSTEM-DOCTOR.md](11-FASE2-SYSTEM-DOCTOR.md) (validado no macOS; Windows pendente; login no app na Fase 3).
 
 ## 3 — Agentes
-- [ ] Adapters, node-pty, xterm.js, processos independentes, eventos e cancelamento.
-- [ ] Testar ambos os agentes com contas oficiais do usuário.
+- [x] Adapters, node-pty, xterm.js, processos independentes, eventos e cancelamento. Ver [12-FASE3-AGENTES.md](12-FASE3-AGENTES.md).
+- [x] Testar ambos os agentes com contas oficiais do usuário (Claude Pro e Codex Plus validados no app; Windows pendente).
 
 ## 4 — Orquestração
 - [ ] Bus, fila, estados, tarefas, limites e proteção contra loops.

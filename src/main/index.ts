@@ -1,13 +1,17 @@
 import { app, BrowserWindow, dialog, shell } from 'electron';
+import * as nodePty from 'node-pty';
 import { statfs } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import type { InstallMethod } from '@shared/doctor';
 import { IPC, IPC_EVENTS, type IpcEvent } from '@shared/ipcChannels';
 import type { AppInfo, IpcHandlers } from '@shared/ipcContracts';
+import { AgentService } from './agents/AgentService';
 import { migrate, openDatabase, sqliteVersion, type Db } from './database/Database';
 import { AuditLogRepository } from './database/repositories/AuditLogRepository';
 import { DependencyRepository } from './database/repositories/DependencyRepository';
+import { SessionRepository } from './database/repositories/SessionRepository';
 import { SettingsRepository } from './database/repositories/SettingsRepository';
+import { WorkspaceRepository } from './database/repositories/WorkspaceRepository';
 import { registerIpc } from './ipc/registerIpc';
 import { createLogger } from './logging/logger';
 import { hardenSession, hardenWindow, rendererEntry, secureWebPreferences } from './security/electronSecurity';
@@ -17,6 +21,7 @@ import { DOC_URLS, INSTALL_CATALOG } from './system/InstallCatalog';
 import { PlatformDetector } from './system/PlatformDetector';
 import { runCommand } from './system/ProcessRunner';
 import { SystemDoctor } from './system/SystemDoctor';
+import { WorkspaceError, WorkspaceManager } from './workspace/WorkspaceManager';
 
 const log = createLogger('main');
 /** Espaço livre mínimo no volume de dados (política do DevFusion). */
@@ -31,6 +36,8 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   let mainWindow: BrowserWindow | null = null;
   let db: Db | null = null;
+  let agents: AgentService | null = null;
+  let quitting = false;
 
   const send = (event: IpcEvent, payload: unknown) => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(event, payload);
@@ -40,7 +47,7 @@ if (!app.requestSingleInstanceLock()) {
     if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.focus(); }
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     hardenSession(log);
 
     const userData = app.getPath('userData');
@@ -53,7 +60,12 @@ if (!app.requestSingleInstanceLock()) {
     const dependencies = new DependencyRepository(db);
     const sqlite = sqliteVersion(db);
 
+    const sessions = new SessionRepository(db);
+    const stale = sessions.markStaleAsDisconnected();
+    if (stale > 0) log.info('Sessões da execução anterior marcadas como desconectadas', { count: stale });
+
     const detector = new PlatformDetector();
+    const workspace = new WorkspaceManager(new WorkspaceRepository(db), detector, runCommand, () => detector.locate('git', settings.getAll().cliPaths.git).found?.path ?? null);
     const connectivityTargets = defaultConnectivityTargets(process.env);
     const doctor = new SystemDoctor({
       context: () => ({
@@ -61,7 +73,7 @@ if (!app.requestSingleInstanceLock()) {
         run: runCommand,
         cliPaths: settings.getAll().cliPaths,
         userDataDir: userData,
-        workspacePath: null,
+        workspacePath: workspace.currentPath(),
         minFreeDiskBytes: MIN_FREE_DISK_BYTES,
         freeDiskBytes: async (dir) => { const s = await statfs(dir); return Number(s.bavail) * Number(s.bsize); },
         connect: tlsProbe,
@@ -79,6 +91,29 @@ if (!app.requestSingleInstanceLock()) {
       audit: (action, target, metadata) => audit.record(action, target, metadata),
       onState: (state) => send(IPC_EVENTS.installerState, state),
     });
+
+    const agentService = new AgentService({
+      detector,
+      ptyFactory: nodePty,
+      configuredPaths: () => { const p = settings.getAll().cliPaths; return { claude: p.claude, codex: p.codex }; },
+      doctorResult: (id) => doctor.getReport().results.find((r) => r.id === id) ?? null,
+      workspacePath: () => workspace.currentPath(),
+      revalidate: (checks) => doctor.run(checks),
+      emitState: (info) => send(IPC_EVENTS.agentState, info),
+      emitData: (agent, data) => send(IPC_EVENTS.terminalData, { agent, data }),
+      // Log sanitizado (redact) para diagnosticar encerramentos inesperados das CLIs.
+      onExitDiagnostics: (d) => log.info(`Agente ${d.agent} encerrou`, d),
+      onSessionCreated: (id, agent, kind) => {
+        const wsId = workspace.currentId();
+        if (kind === 'agent' && wsId) sessions.create(id, wsId, agent, 'running');
+        audit.record('agent.start', agent, { kind });
+      },
+      onSessionEnded: (id, status, kind) => {
+        if (kind === 'agent') { try { sessions.setState(id, status); } catch { /* sessão sem registro */ } }
+      },
+    });
+    agents = agentService;
+    await workspace.restore(settings.getAll().lastWorkspaceId);
 
     const openAllowed = async (url: string) => {
       const allowed = new Set<string>([...Object.values(DOC_URLS), ...INSTALL_CATALOG.map((e) => e.sourceUrl)]);
@@ -113,6 +148,36 @@ if (!app.requestSingleInstanceLock()) {
         return entry ? openAllowed(entry.sourceUrl) : false;
       },
       [IPC.docsOpen]: ({ docId }) => openAllowed(DOC_URLS[docId]),
+      [IPC.workspaceGet]: async () => (workspace.currentPath() ? workspace.info() : null),
+      [IPC.workspaceChoose]: async () => {
+        const opts: Electron.OpenDialogOptions = { title: 'Escolher workspace', properties: ['openDirectory', 'createDirectory'] };
+        const r = mainWindow ? await dialog.showOpenDialog(mainWindow, opts) : await dialog.showOpenDialog(opts);
+        const chosen = r.filePaths[0];
+        if (r.canceled || !chosen) return { ok: true, value: null };
+        if (agentService.list().some((a) => a.status === 'running')) return { ok: false, reason: 'Encerre os agentes antes de trocar de workspace.' };
+        try {
+          const info = await workspace.open(chosen);
+          settings.set('lastWorkspaceId', info.id);
+          audit.record('workspace.open', info.id, {});
+          void doctor.run(['workspace']);
+          return { ok: true, value: info };
+        } catch (e) {
+          if (e instanceof WorkspaceError) return { ok: false, reason: e.message };
+          throw e;
+        }
+      },
+      [IPC.agentsList]: () => agentService.list(),
+      [IPC.agentStart]: async ({ agent, kind, cols, rows }) => {
+        try { return { ok: true, value: await agentService.start(agent, kind, cols, rows) }; }
+        catch (e) { return { ok: false, reason: (e as Error).message }; }
+      },
+      [IPC.agentInterrupt]: async ({ agent }) => { await agentService.adapter(agent).interrupt(); },
+      [IPC.agentStop]: ({ agent }) => agentService.stop(agent),
+      [IPC.agentsStopAll]: async () => { audit.record('agents.stop-all', null, {}); return agentService.stopAll(); },
+      [IPC.terminalWrite]: ({ agent, data }) => agentService.terminals.write(agent, data),
+      [IPC.terminalResize]: ({ agent, cols, rows }) => agentService.terminals.resize(agent, cols, rows),
+      [IPC.terminalAck]: ({ agent, bytes }) => agentService.terminals.ack(agent, bytes),
+      [IPC.terminalReplay]: ({ agent }) => agentService.terminals.replay(agent),
     };
     registerIpc(handlers, () => mainWindow, log);
 
@@ -127,6 +192,13 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on('window-all-closed', () => app.quit());
+  // Nenhum processo de agente pode sobreviver ao app (sem órfãos).
+  app.on('before-quit', (event) => {
+    if (quitting || !agents || !agents.list().some((a) => a.status === 'running')) return;
+    event.preventDefault();
+    quitting = true;
+    void agents.stopAll().finally(() => app.quit());
+  });
   app.on('will-quit', () => { try { db?.close(); } catch { /* já fechado */ } });
 }
 

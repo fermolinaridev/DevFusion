@@ -115,4 +115,12 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX idx_audit_logs_timestamp ON audit_logs(timestamp);
     `,
   },
+  {
+    version: 2,
+    name: 'seed_agents',
+    sql: `
+      INSERT OR IGNORE INTO agents (id, provider, config_json) VALUES ('claude', 'claude', '{}');
+      INSERT OR IGNORE INTO agents (id, provider, config_json) VALUES ('codex', 'codex', '{}');
+    `,
+  },
 ];

@@ -19,6 +19,8 @@ export const SETTINGS_SCHEMA = {
   cliPaths: z
     .object({ git: AbsolutePathSchema.nullable(), claude: AbsolutePathSchema.nullable(), codex: AbsolutePathSchema.nullable() })
     .strict(),
+  /** Último workspace aberto (id da tabela workspaces). */
+  lastWorkspaceId: z.string().uuid().nullable(),
 } as const;
 
 export type SettingKey = keyof typeof SETTINGS_SCHEMA;
@@ -28,6 +30,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',
   onboardingCompleted: false,
   cliPaths: { git: null, claude: null, codex: null },
+  lastWorkspaceId: null,
 };
 
 export const SETTING_KEYS = Object.keys(SETTINGS_SCHEMA) as SettingKey[];

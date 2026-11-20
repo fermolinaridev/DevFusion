@@ -11,7 +11,9 @@ import tailwindcss from '@tailwindcss/vite';
 const PROD_CSP = [
   "default-src 'none'",
   "script-src 'self'",
-  "style-src 'self'",
+  // xterm.js injeta <style> dinâmico (tema/cursor). Só estilos recebem 'unsafe-inline';
+  // scripts seguem estritos e img/connect bloqueados impedem exfiltração via CSS.
+  "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
   "font-src 'self'",
   "connect-src 'none'",

@@ -40,14 +40,16 @@ test('renderer não tem acesso a Node e só vê a API mínima', async () => {
       frozen: Object.isFrozen(api),
     };
   });
-  expect(probe).toEqual({ require: 'undefined', process: 'undefined', ipcRenderer: 'undefined', electron: 'undefined', apiKeys: ['app', 'docs', 'doctor', 'installer', 'settings'], appKeys: ['getInfo'], settingsKeys: ['getAll', 'set'], frozen: true });
+  expect(probe).toEqual({ require: 'undefined', process: 'undefined', ipcRenderer: 'undefined', electron: 'undefined', apiKeys: ['agents', 'app', 'docs', 'doctor', 'installer', 'settings', 'terminal', 'workspace'], appKeys: ['getInfo'], settingsKeys: ['getAll', 'set'], frozen: true });
   await app.close();
 });
 
 test('CSP de produção está presente e bloqueia script inline e rede externa', async () => {
   const { app, page } = await launch(dir);
   const csp = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content');
-  expect(csp).toContain("script-src 'self'");
+  expect(csp).toContain("script-src 'self';");
+  expect(csp).not.toMatch(/script-src[^;]*unsafe/);
+  expect(csp).toContain("img-src 'self' data:");
   expect(csp).toContain("connect-src 'none'");
   const blocked = await page.evaluate(async () => {
     const s = document.createElement('script'); s.textContent = 'window.__inline = 1'; document.head.appendChild(s);
@@ -90,7 +92,7 @@ test('layout inicial mostra estados reais, sem dados simulados', async () => {
   await expect(page.getByTestId('chat-empty')).toHaveText('Nenhuma mensagem.');
   await expect(page.getByRole('button', { name: 'Parar tudo' })).toBeDisabled();
   await expect(page.getByTestId('status-db')).toContainText(`DevFusion ${APP_VERSION} ·`);
-  await expect(page.getByTestId('status-db')).toContainText('Banco v1');
+  await expect(page.getByTestId('status-db')).toContainText(/Banco v\d+ \(SQLite/);
   await app.close();
 });
 

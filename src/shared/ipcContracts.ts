@@ -3,6 +3,10 @@ import {
   DoctorRunArgsSchema, InstallPlanArgsSchema, InstallRunArgsSchema, OpenDocArgsSchema,
   type CheckId, type DoctorReport, type InstallMethod, type InstallState, type InstallableDependency, type DocId,
 } from './doctor';
+import {
+  AgentArgsSchema, AgentStartArgsSchema, TerminalAckArgsSchema, TerminalResizeArgsSchema, TerminalWriteArgsSchema,
+  type AgentId, type AgentSessionInfo, type SessionKind, type WorkspaceInfo,
+} from './agents';
 import { IPC } from './ipcChannels';
 import { SETTINGS_SCHEMA, isSettingKey, type Settings } from './settings';
 
@@ -44,7 +48,21 @@ export const IPC_ARG_SCHEMAS = {
   [IPC.installerCancel]: z.undefined(),
   [IPC.installerOpenSource]: InstallRunArgsSchema,
   [IPC.docsOpen]: OpenDocArgsSchema,
+  [IPC.workspaceGet]: z.undefined(),
+  [IPC.workspaceChoose]: z.undefined(),
+  [IPC.agentsList]: z.undefined(),
+  [IPC.agentStart]: AgentStartArgsSchema,
+  [IPC.agentInterrupt]: AgentArgsSchema,
+  [IPC.agentStop]: AgentArgsSchema,
+  [IPC.agentsStopAll]: z.undefined(),
+  [IPC.terminalWrite]: TerminalWriteArgsSchema,
+  [IPC.terminalResize]: TerminalResizeArgsSchema,
+  [IPC.terminalAck]: TerminalAckArgsSchema,
+  [IPC.terminalReplay]: AgentArgsSchema,
 } as const;
+
+/** Resultado de ações que podem falhar por motivo esperado (mensagem para o usuário). */
+export type ActionResult<T> = { ok: true; value: T } | { ok: false; reason: string };
 
 export interface IpcHandlers {
   [IPC.appGetInfo]: () => AppInfo;
@@ -58,4 +76,15 @@ export interface IpcHandlers {
   [IPC.installerCancel]: () => boolean;
   [IPC.installerOpenSource]: (arg: { methodId: string }) => Promise<boolean>;
   [IPC.docsOpen]: (arg: { docId: DocId }) => Promise<boolean>;
+  [IPC.workspaceGet]: () => Promise<WorkspaceInfo | null>;
+  [IPC.workspaceChoose]: () => Promise<ActionResult<WorkspaceInfo | null>>;
+  [IPC.agentsList]: () => AgentSessionInfo[];
+  [IPC.agentStart]: (arg: { agent: AgentId; kind: SessionKind; cols: number; rows: number }) => Promise<ActionResult<AgentSessionInfo>>;
+  [IPC.agentInterrupt]: (arg: { agent: AgentId }) => Promise<void>;
+  [IPC.agentStop]: (arg: { agent: AgentId }) => Promise<AgentSessionInfo>;
+  [IPC.agentsStopAll]: () => Promise<AgentSessionInfo[]>;
+  [IPC.terminalWrite]: (arg: { agent: AgentId; data: string }) => void;
+  [IPC.terminalResize]: (arg: { agent: AgentId; cols: number; rows: number }) => void;
+  [IPC.terminalAck]: (arg: { agent: AgentId; bytes: number }) => void;
+  [IPC.terminalReplay]: (arg: { agent: AgentId }) => string;
 }
