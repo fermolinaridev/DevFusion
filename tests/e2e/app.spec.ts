@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FakeToolDir } from '../helpers/fakeTools';
@@ -81,6 +81,9 @@ test('navegação e popups são bloqueados', async () => {
   const popup = await page.evaluate(() => window.open('https://example.com') === null);
   expect(popup).toBe(true);
   expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
+  // O link https foi encaminhado ao navegador do sistema (suprimido nos testes), nunca aberto no app.
+  const mainLog = join(dir, 'logs', 'main.log');
+  await expect.poll(() => existsSync(mainLog) ? readFileSync(mainLog, 'utf8') : '').toContain('Abertura externa suprimida (teste)');
   await app.close();
 });
 

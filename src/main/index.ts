@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, Notification, shell } from 'electron';
+import { app, BrowserWindow, dialog, Notification } from 'electron';
 import { writeFile } from 'node:fs/promises';
 import type { GitLocation, RepoStatus } from '@shared/git';
 import * as nodePty from 'node-pty';
@@ -38,6 +38,7 @@ import { defaultConnectivityTargets, tlsProbe } from './system/checks';
 import { DependencyInstaller } from './system/DependencyInstaller';
 import { DOC_URLS, INSTALL_CATALOG } from './system/InstallCatalog';
 import { PlatformDetector } from './system/PlatformDetector';
+import { configureExternalOpen, openExternalUrl, openLocalPath } from './system/externalOpen';
 import { runCommand } from './system/ProcessRunner';
 import { SystemDoctor } from './system/SystemDoctor';
 import { WorkspaceError, WorkspaceManager } from './workspace/WorkspaceManager';
@@ -53,7 +54,8 @@ process.on('unhandledRejection', (e) => log.error('Promessa rejeitada sem tratam
 // Sandbox em todos os renderers (além do sandbox configurado por janela).
 app.enableSandbox();
 // Variáveis só para testes/desenvolvimento: ignoradas no app empacotado.
-if (app.isPackaged) for (const k of ['DEVFUSION_TOOL_PATH', 'DEVFUSION_CONNECTIVITY_TARGETS', 'DEVFUSION_MIN_FREE_DISK_BYTES', 'DEVFUSION_USER_DATA_DIR']) delete process.env[k];
+if (app.isPackaged) for (const k of ['DEVFUSION_TOOL_PATH', 'DEVFUSION_CONNECTIVITY_TARGETS', 'DEVFUSION_MIN_FREE_DISK_BYTES', 'DEVFUSION_USER_DATA_DIR', 'DEVFUSION_SUPPRESS_EXTERNAL_OPEN']) delete process.env[k];
+configureExternalOpen({ suppress: process.env['DEVFUSION_SUPPRESS_EXTERNAL_OPEN'] === '1', log });
 
 // Diretório de dados alternativo (usado pelos testes E2E para isolamento).
 const userDataOverride = process.env['DEVFUSION_USER_DATA_DIR'];
@@ -67,6 +69,10 @@ if (!app.requestSingleInstanceLock()) {
   let agents: AgentService | null = null;
   let usage: UsageService | null = null;
   let quitting = false;
+  /** App encerrando (qualquer motivo): não recarregar o renderer. */
+  let appQuitting = false;
+  /** Quedas recentes do renderer, para não entrar em laço de recargas. */
+  const rendererCrashes: number[] = [];
 
   const send = (event: IpcEvent, payload: unknown) => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(event, payload);
@@ -279,7 +285,7 @@ if (!app.requestSingleInstanceLock()) {
     const openAllowed = async (url: string) => {
       const allowed = new Set<string>([...Object.values(DOC_URLS), ...INSTALL_CATALOG.map((e) => e.sourceUrl)]);
       if (!allowed.has(url)) return false;
-      await shell.openExternal(url);
+      await openExternalUrl(url);
       return true;
     };
 
@@ -469,7 +475,7 @@ if (!app.requestSingleInstanceLock()) {
         audit.record('diagnostics.export', null, {});
         return detector.shortenHome(r.filePath);
       }),
-      [IPC.logsOpenFolder]: async () => (await shell.openPath(logDir)) === '',
+      [IPC.logsOpenFolder]: async () => (await openLocalPath(logDir)) === '',
       [IPC.dashboardGet]: () => {
         const ws = wsRef();
         const tasksByStatus: Record<string, number> = {};
@@ -482,7 +488,7 @@ if (!app.requestSingleInstanceLock()) {
         };
       },
       [IPC.worktreesOpenFolder]: ({ id }) => expectedAsync(async () => {
-        const err = await shell.openPath(worktrees.activePath(requireWs(), id));
+        const err = await openLocalPath(worktrees.activePath(requireWs(), id));
         if (err) throw new GitOpError(err);
         return true;
       }),
@@ -494,9 +500,15 @@ if (!app.requestSingleInstanceLock()) {
     // Recuperação: renderer caiu → registra e recarrega; terminais se reanexam pelo buffer.
     mainWindow.webContents.on('render-process-gone', (_e, details) => {
       log.error('Renderer encerrado inesperadamente', { reason: details.reason, exitCode: details.exitCode });
-      if (details.reason === 'clean-exit') return;
+      // Não filtra por `reason`: no Linux (zigoto do Chromium) uma queda forçada pode chegar como
+      // 'clean-exit'. Basta a janela continuar aberta e o app não estar saindo.
+      if (appQuitting || !mainWindow || mainWindow.isDestroyed()) return;
+      const now = Date.now();
+      rendererCrashes.push(now);
+      while (rendererCrashes.length && now - rendererCrashes[0]! > 60_000) rendererCrashes.shift();
+      if (rendererCrashes.length > 3) { log.error('Renderer caiu repetidamente; recarga automática suspensa'); return; }
       agentService.terminals.resetFlowControl();
-      setTimeout(() => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload(); }, 500);
+      setTimeout(() => { if (!appQuitting && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload(); }, 500);
     });
     mainWindow.webContents.on('did-finish-load', () => agentService.terminals.resetFlowControl());
     mainWindow.on('unresponsive', () => log.warn('Janela sem resposta'));
@@ -518,6 +530,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('window-all-closed', () => app.quit());
   // Nenhum processo de agente pode sobreviver ao app (sem órfãos).
   app.on('before-quit', (event) => {
+    appQuitting = true;
     if (quitting || !agents || !agents.list().some((a) => a.status === 'running')) return;
     event.preventDefault();
     quitting = true;

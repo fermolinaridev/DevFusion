@@ -7,7 +7,7 @@ Todas as versões foram validadas no macOS (arm64). Windows e Linux passam a ser
 - Recuperação: renderer que cai é recarregado sem matar agentes (terminais reanexados, controle de fluxo zerado); exceções do main registradas; banco ilegível preservado com opção de mover para o lado.
 - Logs em arquivo (sanitizados, rotação 3 × 1 MB) e "Exportar diagnóstico" para relatos da beta.
 - Testes: cobertura medida (85% instruções / 90% linhas em main+shared), testes reais opcionais (`npm run test:real`), CI no GitHub Actions (Windows + Linux).
-- Correções achadas pelo CI: banco no Windows (handle aberto em erro, WAL preservado, caminhos 8.3) e Linux (CLIs e E2E recebem `DISPLAY`/D-Bus para login pelo navegador e chaveiro).
+- Correções achadas pelo CI: banco no Windows (handle aberto em erro, WAL preservado, caminhos 8.3) e Linux (CLIs e E2E recebem `DISPLAY`/D-Bus para login pelo navegador e chaveiro; recuperação do renderer não depende do motivo da queda e tem limite contra laço; testes não abrem navegador nem gerenciador de arquivos de verdade).
 
 ## 0.1.x — Fases 0 a 6
 - **Fase 0**: prova de conceito das CLIs oficiais com assinatura (sem API keys).

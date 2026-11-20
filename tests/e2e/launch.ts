@@ -21,6 +21,8 @@ export async function launch(userDataDir: string, opts: LaunchOptions): Promise<
     DEVFUSION_TOOL_PATH: opts.toolDir,
     DEVFUSION_CONNECTIVITY_TARGETS: opts.connectivity ?? 'anthropic=127.0.0.1:9,openai=127.0.0.1:9',
     PATH: process.env['PATH'] ?? '',
+    // Nada de abrir navegador/gerenciador de arquivos de verdade durante os testes.
+    DEVFUSION_SUPPRESS_EXTERNAL_OPEN: '1',
   };
   if (opts.minFreeDiskBytes !== undefined) env['DEVFUSION_MIN_FREE_DISK_BYTES'] = String(opts.minFreeDiskBytes);
   for (const k of ['HOME', 'USER', 'TMPDIR', 'LANG', 'SystemRoot', 'APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'TEMP', 'TMP', 'ComSpec', 'PATHEXT',

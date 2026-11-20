@@ -1,7 +1,8 @@
-import { app, session, shell, type BrowserWindow, type WebFrameMain, type WebPreferences } from 'electron';
+import { app, session, type BrowserWindow, type WebFrameMain, type WebPreferences } from 'electron';
 import { dirname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Logger } from '../logging/logger';
+import { openExternalUrl } from '../system/externalOpen';
 
 export function secureWebPreferences(preloadPath: string): WebPreferences {
   return {
@@ -89,7 +90,7 @@ export function hardenWindow(win: BrowserWindow, log: Logger): void {
   wc.on('will-attach-webview', (event) => event.preventDefault());
   wc.setWindowOpenHandler(({ url }) => {
     // Links externos (https) abrem no navegador do sistema; nada abre dentro do app.
-    if (/^https:\/\//i.test(url)) void shell.openExternal(url);
+    if (/^https:\/\//i.test(url)) void openExternalUrl(url).catch((e: unknown) => log.warn('Falha ao abrir link externo', e));
     return { action: 'deny' };
   });
 }

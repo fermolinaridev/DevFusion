@@ -41,7 +41,14 @@ test('renderer que cai é recarregado; agentes continuam vivos e terminais reane
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.forcefullyCrashRenderer());
   // O Playwright não acompanha a página depois da queda; inspecionamos a janela recarregada pelo main.
   const inWindow = (js: string) => app.evaluate(({ BrowserWindow }, code) => BrowserWindow.getAllWindows()[0]!.webContents.executeJavaScript(code), js);
-  await expect.poll(() => inWindow(`!!document.querySelector('[data-testid="status-bar"]')`).catch(() => false), { timeout: 20_000 }).toBe(true);
+  try {
+    await expect.poll(() => inWindow(`!!document.querySelector('[data-testid="status-bar"]')`).catch(() => false), { timeout: 20_000 }).toBe(true);
+  } catch (e) {
+    // Diagnóstico para o CI: o que o main registrou sobre a queda e a recarga.
+    const state = await app.evaluate(({ BrowserWindow }) => { const w = BrowserWindow.getAllWindows()[0]; return w ? { url: w.webContents.getURL(), crashed: w.webContents.isCrashed(), loading: w.webContents.isLoading() } : null; }).catch(() => null);
+    const log = readFileSync(join(dir, 'logs', 'main.log'), 'utf8').split('\n').slice(-30).join('\n');
+    throw new Error(`${(e as Error).message}\njanela: ${JSON.stringify(state)}\nmain.log:\n${log}`);
+  }
   expect(pids.every(alive)).toBe(true);
   await expect.poll(() => inWindow(`document.querySelector('[data-testid="agent-status-claude"]')?.textContent`)).toBe('sessão ativa');
   // Terminal reanexado pelo buffer e entrada funcionando (controle de fluxo zerado).
