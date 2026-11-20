@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { AgentId, AgentSessionInfo } from '@shared/agents';
 import { forwardHeader, type PermissionPreset } from '@shared/orchestration';
 import { AGENT_NAMES } from '@shared/agents';
@@ -6,6 +6,7 @@ import { isRunning, useAgentStore } from '../../stores/agentStore';
 import { useAppStore } from '../../stores/appStore';
 import { resultOf, useDoctorStore } from '../../stores/doctorStore';
 import { useChatStore } from '../../stores/chatStore';
+import { useGitStore } from '../../stores/gitStore';
 import { TerminalView, terminalSelection } from '../agents/TerminalView';
 import { OutboundDialog, type OutboundDraft } from '../chat/OutboundDialog';
 import { Button } from '../ui/Modal';
@@ -40,6 +41,11 @@ export function AgentPane({ agent }: { agent: AgentId }) {
   const workspace = useAgentStore((s) => s.workspace);
   const { start, interrupt, stop, chooseWorkspace, setPermission } = useAgentStore();
   const permission = useAgentStore((s) => s.permission[agent]);
+  const locationId = useAgentStore((s) => s.location[agent]);
+  const setLocation = useAgentStore((s) => s.setLocation);
+  // Seleciona o array estável e filtra fora do seletor (Zustand 5 exige referências estáveis).
+  const allWorktrees = useGitStore((s) => s.worktrees);
+  const worktrees = useMemo(() => allWorktrees.filter((w) => w.status === 'active' && w.present), [allWorktrees]);
   const hasSelection = useAgentStore((s) => s.hasSelection[agent] ?? false);
   const forward = useChatStore((s) => s.forward);
   const [draft, setDraft] = useState<OutboundDraft | null>(null);
@@ -63,11 +69,13 @@ export function AgentPane({ agent }: { agent: AgentId }) {
 
   return (
     <section aria-label={AGENT_NAMES[agent]} data-testid={`agent-pane-${agent}`} className="flex h-full flex-col bg-bg">
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border bg-surface px-3">
+      {/* Quebra em duas linhas quando o painel fica estreito: nenhum botão some da tela. */}
+      <div className="flex min-h-9 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border bg-surface px-3 py-1">
         <span className={`shrink-0 font-medium whitespace-nowrap ${COLOR[agent]}`}>{AGENT_NAMES[agent]}</span>
         {tool?.version && <span className="min-w-0 truncate text-xs text-muted" title={tool.version}>{tool.version}</span>}
-        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+        <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
           <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-muted" data-testid={`agent-status-${agent}`} title={info?.capabilities.automationNote}>{status}</span>
+          {running && info?.kind === 'agent' && info.location.kind === 'worktree' && <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-muted" data-testid={`agent-location-${agent}`}>worktree {info.location.name}</span>}
           {running && info?.kind === 'agent' && info.permission === 'read-only' && <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-muted" data-testid={`agent-permission-${agent}`}>somente leitura</span>}
           {running && (
             <Button key="forward" className="!px-2 !py-0.5 text-xs" disabled={!hasSelection} onClick={openForward} data-testid={`forward-${agent}`}
@@ -81,6 +89,13 @@ export function AgentPane({ agent }: { agent: AgentId }) {
             </>
           ) : (
             <>
+              {worktrees.length > 0 && (
+                <select key="loc" value={locationId ?? ''} onChange={(e) => setLocation(agent, e.target.value || null)} aria-label="Local de execução"
+                  className="max-w-32 rounded border border-border bg-bg px-1 py-0.5 text-xs" title="Onde iniciar o agente: raiz do workspace ou um worktree" data-testid={`location-${agent}`}>
+                  <option value="">raiz</option>
+                  {worktrees.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              )}
               <label className="sr-only" htmlFor={`perm-${agent}`}>Permissões</label>
               <select key="perm" id={`perm-${agent}`} value={permission} onChange={(e) => setPermission(agent, e.target.value as PermissionPreset)}
                 className="rounded border border-border bg-bg px-1 py-0.5 text-xs" title={PERMISSION_HELP[agent]} data-testid={`permission-${agent}`}>

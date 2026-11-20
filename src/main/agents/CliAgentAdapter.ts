@@ -46,7 +46,7 @@ export class CliAgentAdapter implements AgentAdapter {
   constructor(private readonly cfg: CliAgentConfig, private readonly deps: CliAgentDeps) {
     this.id = cfg.id;
     this.name = cfg.name;
-    this.info = { agent: cfg.id, kind: 'agent', status: 'idle', permission: 'cli-default', stopping: false, sessionId: null, pid: null, cwd: null, command: null, startedAt: null, endedAt: null, exitCode: null, signal: null, error: null, capabilities: cfg.capabilities };
+    this.info = { agent: cfg.id, kind: 'agent', status: 'idle', permission: 'cli-default', location: { kind: 'root' }, stopping: false, sessionId: null, pid: null, cwd: null, command: null, startedAt: null, endedAt: null, exitCode: null, signal: null, error: null, capabilities: cfg.capabilities };
   }
 
   snapshot(): AgentSessionInfo { return { ...this.info }; }
@@ -65,7 +65,7 @@ export class CliAgentAdapter implements AgentAdapter {
 
   getStatus(): AgentStatus { return this.info.status; }
 
-  async startSession(cwd: string, opts: { kind: SessionKind; cols: number; rows: number; permission?: PermissionPreset }): Promise<void> {
+  async startSession(cwd: string, opts: { kind: SessionKind; cols: number; rows: number; permission?: PermissionPreset; location?: AgentSessionInfo['location'] }): Promise<void> {
     if (this.deps.terminals.has(this.id)) throw new Error(`${this.name} já está em execução.`);
     const { found } = this.deps.detector.locate(this.cfg.tool, this.deps.configuredPath());
     if (!found) {
@@ -80,8 +80,9 @@ export class CliAgentAdapter implements AgentAdapter {
     try {
       const cmd = ptyCommand(found.path, args, this.deps.detector.platform, env);
       const pid = this.deps.terminals.start(this.id, { file: cmd.file, args: cmd.args, cwd, env, cols: opts.cols, rows: opts.rows });
+      this.cwdReal = cwd;
       this.update({
-        kind: opts.kind, permission, status: 'running', stopping: false, sessionId, pid, cwd: this.deps.detector.shortenHome(cwd),
+        kind: opts.kind, permission, location: opts.location ?? { kind: 'root' }, status: 'running', stopping: false, sessionId, pid, cwd: this.deps.detector.shortenHome(cwd),
         command: [this.cfg.tool, ...args.filter((a, i) => args[i - 1] !== '--settings')].join(' '), startedAt: new Date().toISOString(), endedAt: null, exitCode: null, signal: null, error: null,
       });
       this.deps.onSessionCreated?.(sessionId, this.id, opts.kind);
@@ -109,6 +110,10 @@ export class CliAgentAdapter implements AgentAdapter {
     if (text.includes('\n')) throw new PasteNotSafeError(`${this.name} não está aceitando colagem segura de várias linhas neste momento (o programa não ativou bracketed paste). Copie o texto manualmente ou envie uma linha só.`);
     this.deps.terminals.write(this.id, text);
   }
+
+  /** Diretório real onde o processo atual roda (null se parado). */
+  runningCwd(): string | null { return this.deps.terminals.has(this.id) ? this.cwdReal : null; }
+  private cwdReal: string | null = null;
 
   async interrupt(): Promise<void> { this.deps.terminals.interrupt(this.id); }
 

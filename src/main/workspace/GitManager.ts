@@ -26,7 +26,11 @@ export interface ReviewSnapshot {
 export class GitManager {
   constructor(private readonly run: CommandRunner, private readonly gitPath: () => string | null, private readonly env: () => NodeJS.ProcessEnv, private readonly maxChars = 40_000) {}
 
-  async reviewSnapshot(workspace: string): Promise<ReviewSnapshot> {
+  /**
+   * Snapshot para revisão. Sem `base`: alterações preparadas e não preparadas da pasta.
+   * Com `base` (worktree): tudo que mudou desde o commit base (commits do branch + não commitado).
+   */
+  async reviewSnapshot(workspace: string, base?: string): Promise<ReviewSnapshot> {
     const git = this.gitPath();
     if (!git) return { isRepo: false, text: '', warnings: ['Git não encontrado: a revisão vai sem diff; o revisor deve olhar os arquivos diretamente.'] };
     const g = (args: string[]) => this.run(git, ['-C', workspace, ...args], { env: this.env(), timeoutMs: 15_000, maxOutputBytes: 2 * 1024 * 1024 });
@@ -36,8 +40,8 @@ export class GitManager {
     const exclude = SENSITIVE_PATHSPECS.map((p) => `:(exclude,glob)${p}`);
     const [status, staged, unstaged] = await Promise.all([
       g(['status', '--porcelain=v1', '--untracked-files=all']),
-      g(['diff', '--cached', '--no-color', '--no-ext-diff', '--', '.', ...exclude]),
-      g(['diff', '--no-color', '--no-ext-diff', '--', '.', ...exclude]),
+      base ? g(['diff', '--no-color', '--no-ext-diff', base, '--', '.', ...exclude]) : g(['diff', '--cached', '--no-color', '--no-ext-diff', '--', '.', ...exclude]),
+      base ? Promise.resolve({ stdout: '' }) : g(['diff', '--no-color', '--no-ext-diff', '--', '.', ...exclude]),
     ]);
     const warnings: string[] = [];
     const statusLines = status.stdout.split('\n').filter(Boolean);
@@ -46,8 +50,10 @@ export class GitManager {
     const untracked = statusLines.filter((l) => l.startsWith('??')).length;
     if (untracked) warnings.push(`${untracked} arquivo(s) novo(s) não rastreado(s) aparecem só pelo nome; o revisor deve abri-los no workspace.`);
 
-    let diff = [staged.stdout && `# Alterações preparadas (staged)\n${staged.stdout}`, unstaged.stdout && `# Alterações não preparadas\n${unstaged.stdout}`].filter(Boolean).join('\n');
-    if (!diff && statusLines.length === 0) warnings.push('Nenhuma alteração detectada no Git.');
+    let diff = base
+      ? (staged.stdout ? `# Alterações desde a base ${base.slice(0, 10)} (commits do branch + não commitado)\n${staged.stdout}` : '')
+      : [staged.stdout && `# Alterações preparadas (staged)\n${staged.stdout}`, unstaged.stdout && `# Alterações não preparadas\n${unstaged.stdout}`].filter(Boolean).join('\n');
+    if (!diff && (base || statusLines.length === 0)) warnings.push('Nenhuma alteração detectada no Git.');
     if (diff.length > this.maxChars) {
       diff = `${diff.slice(0, this.maxChars)}\n… [diff truncado em ${this.maxChars} caracteres]`;
       warnings.push(`Diff grande: truncado em ${this.maxChars} caracteres.`);

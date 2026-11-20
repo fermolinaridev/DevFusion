@@ -71,10 +71,16 @@ export class AgentService {
   isRunning(agent: AgentId): boolean { return this.terminals.has(agent); }
   list(): AgentSessionInfo[] { return AGENT_IDS.map((a) => this.adapters[a].snapshot()); }
 
-  async start(agent: AgentId, kind: SessionKind, cols: number, rows: number, permission: PermissionPreset = 'cli-default'): Promise<AgentSessionInfo> {
+  /**
+   * Inicia o agente na raiz do workspace ou num worktree (`at`, já validado pelo chamador
+   * como worktree ativo do workspace atual).
+   */
+  async start(agent: AgentId, kind: SessionKind, cols: number, rows: number, permission: PermissionPreset = 'cli-default', at?: { path: string; id: string; name: string }): Promise<AgentSessionInfo> {
     const ws = this.deps.workspacePath();
     if (kind === 'agent' && !ws) throw new Error('Selecione um workspace antes de iniciar o agente.');
-    await this.adapters[agent].startSession(kind === 'agent' ? ws! : ws ?? homedir(), { kind, cols, rows, permission });
+    const cwd = kind === 'agent' ? (at?.path ?? ws!) : ws ?? homedir();
+    const location = kind === 'agent' && at ? { kind: 'worktree' as const, id: at.id, name: at.name } : { kind: 'root' as const };
+    await this.adapters[agent].startSession(cwd, { kind, cols, rows, permission, location });
     return this.adapters[agent].snapshot();
   }
 

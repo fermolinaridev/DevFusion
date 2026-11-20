@@ -29,6 +29,8 @@ export interface AgentSessionInfo {
   status: AgentStatus;
   /** Preset de permissão usado ao iniciar (flags oficiais da CLI). */
   permission: PermissionPreset;
+  /** Onde o processo roda: raiz do workspace ou um worktree. */
+  location: { kind: 'root' } | { kind: 'worktree'; id: string; name: string };
   /** Encerramento em andamento (Ctrl‑C → SIGTERM → SIGKILL). */
   stopping: boolean;
   sessionId: string | null;
@@ -54,7 +56,11 @@ export interface WorkspaceInfo {
 const agent = z.enum(AGENT_IDS);
 export const AgentArgsSchema = z.object({ agent }).strict();
 export const AgentStartArgsSchema = z
-  .object({ agent, kind: z.enum(['agent', 'login']), cols: z.number().int().min(2).max(1000), rows: z.number().int().min(2).max(500), permission: z.enum(PERMISSION_PRESETS).default('cli-default') })
+  .object({
+    agent, kind: z.enum(['agent', 'login']), cols: z.number().int().min(2).max(1000), rows: z.number().int().min(2).max(500),
+    permission: z.enum(PERMISSION_PRESETS).default('cli-default'),
+    worktreeId: z.string().uuid().nullable().default(null),
+  })
   .strict();
 /** Entrada do teclado do xterm (limitada para não travar o PTY). */
 export const TerminalWriteArgsSchema = z.object({ agent, data: z.string().min(1).max(65_536) }).strict();

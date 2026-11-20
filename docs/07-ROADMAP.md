@@ -37,7 +37,7 @@ Estimativa inicial de referência: 13 semanas de trabalho individual; não é pr
 - [x] Entregar MVP v0.1 (v0.1.0, macOS). Ver [13-FASE4-ORQUESTRACAO.md](13-FASE4-ORQUESTRACAO.md).
 
 ## 5 — Git
-- [ ] Seleção de projeto, árvore, monitoramento, branches, worktrees, diff, conflitos, merge e rollback autorizados.
+- [x] Seleção de projeto, árvore, monitoramento, branches, worktrees, diff, conflitos, merge e rollback autorizados. Ver [15-FASE5-GIT.md](15-FASE5-GIT.md) (macOS; Windows pendente).
 
 ## 6 — UI avançada
 - [ ] Monaco, dashboard, histórico, temas, atalhos, notificações, personalização, modos avançados suportados.

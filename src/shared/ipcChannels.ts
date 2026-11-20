@@ -32,6 +32,18 @@ export const IPC = {
   tasksDecide: 'tasks:decide',
   usageGet: 'usage:get',
   usageRefresh: 'usage:refresh',
+  gitStatus: 'git:status',
+  explorerList: 'explorer:list',
+  explorerDiff: 'explorer:diff',
+  worktreesList: 'worktrees:list',
+  worktreesCreate: 'worktrees:create',
+  worktreesFiles: 'worktrees:files',
+  worktreesCommit: 'worktrees:commit',
+  worktreesCheckMerge: 'worktrees:check-merge',
+  worktreesMerge: 'worktrees:merge',
+  worktreesRevert: 'worktrees:revert',
+  worktreesRemove: 'worktrees:remove',
+  worktreesOpenFolder: 'worktrees:open-folder',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -47,5 +59,7 @@ export const IPC_EVENTS = {
   taskUpdated: 'event:task-updated',
   workspaceChanged: 'event:workspace-changed',
   usage: 'event:usage',
+  fsChanged: 'event:fs-changed',
+  worktreesChanged: 'event:worktrees-changed',
 } as const;
 export type IpcEvent = (typeof IPC_EVENTS)[keyof typeof IPC_EVENTS];

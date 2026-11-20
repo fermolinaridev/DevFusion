@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AGENT_NAMES } from '@shared/agents';
 import type { ProviderUsage, UsageWindow } from '@shared/usage';
 import { useUsageStore } from '../../stores/usageStore';
+import { useAgentStore } from '../../stores/agentStore';
 import { Button } from '../ui/Modal';
 
 /** "em 2 h 30 min", "em 3 dias" — relativo ao relógio atual. */
@@ -44,6 +45,8 @@ function Bar({ w, now, testId }: { w: UsageWindow; now: number; testId: string }
 }
 
 function ProviderCard({ u, now }: { u: ProviderUsage; now: number }) {
+  const claudeRunning = useAgentStore((s) => s.sessions.claude?.status === 'running' && s.sessions.claude.kind === 'agent');
+  const note = u.provider === 'claude' && u.status === 'no-data' && claudeRunning ? 'Sessão do Claude ativa: aguardando a primeira resposta. Envie uma mensagem no terminal do Claude para os números aparecerem.' : u.note;
   const color = u.provider === 'claude' ? 'text-claude' : 'text-codex';
   return (
     <section className="flex flex-col gap-3 rounded border border-border bg-surface p-3" data-testid={`usage-${u.provider}`} data-status={u.status} aria-labelledby={`usage-title-${u.provider}`}>
@@ -60,7 +63,7 @@ function ProviderCard({ u, now }: { u: ProviderUsage; now: number }) {
           {u.extras.resetCreditsAvailable} reset(s) gratuito(s) disponível(is) na sua conta. Use pelo próprio Codex, se quiser: o DevFusion só exibe.
         </p>
       )}
-      {u.note && <p className="text-xs text-muted" data-testid={`usage-${u.provider}-note`}>{u.note}</p>}
+      {note && <p className="text-xs text-muted" data-testid={`usage-${u.provider}-note`}>{note}</p>}
       <p className="text-[11px] text-muted">Fonte: {u.source || '—'}</p>
     </section>
   );

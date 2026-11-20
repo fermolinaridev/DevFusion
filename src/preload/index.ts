@@ -41,7 +41,7 @@ const api: DevFusionApi = Object.freeze({
   }),
   agents: Object.freeze({
     list: () => ipcRenderer.invoke(IPC.agentsList),
-    start: (agent: unknown, kind: unknown, cols: unknown, rows: unknown, permission?: unknown) => ipcRenderer.invoke(IPC.agentStart, { agent, kind, cols, rows, ...(permission === undefined ? {} : { permission }) }),
+    start: (agent: unknown, kind: unknown, cols: unknown, rows: unknown, permission?: unknown, worktreeId?: unknown) => ipcRenderer.invoke(IPC.agentStart, { agent, kind, cols, rows, ...(permission === undefined ? {} : { permission }), ...(worktreeId === undefined ? {} : { worktreeId }) }),
     interrupt: (agent: unknown) => ipcRenderer.invoke(IPC.agentInterrupt, { agent }),
     stop: (agent: unknown) => ipcRenderer.invoke(IPC.agentStop, { agent }),
     stopAll: () => ipcRenderer.invoke(IPC.agentsStopAll),
@@ -72,6 +72,24 @@ const api: DevFusionApi = Object.freeze({
     get: () => ipcRenderer.invoke(IPC.usageGet),
     refresh: () => ipcRenderer.invoke(IPC.usageRefresh),
     onChanged: (cb: (r: never) => void) => subscribe(IPC_EVENTS.usage, cb),
+  }),
+  git: Object.freeze({
+    status: (location: unknown) => ipcRenderer.invoke(IPC.gitStatus, { location }),
+    list: (location: unknown, rel: unknown) => ipcRenderer.invoke(IPC.explorerList, { location, rel }),
+    fileDiff: (location: unknown, rel: unknown) => ipcRenderer.invoke(IPC.explorerDiff, { location, rel }),
+    onFsChanged: (cb: () => void) => subscribe(IPC_EVENTS.fsChanged, cb),
+  }),
+  worktrees: Object.freeze({
+    list: () => ipcRenderer.invoke(IPC.worktreesList),
+    create: (name: unknown, baseRef: unknown, agent: unknown) => ipcRenderer.invoke(IPC.worktreesCreate, { name, baseRef, agent }),
+    files: (id: unknown) => ipcRenderer.invoke(IPC.worktreesFiles, { id }),
+    commit: (id: unknown, message: unknown) => ipcRenderer.invoke(IPC.worktreesCommit, { id, message }),
+    checkMerge: (id: unknown) => ipcRenderer.invoke(IPC.worktreesCheckMerge, { id }),
+    merge: (id: unknown) => ipcRenderer.invoke(IPC.worktreesMerge, { id }),
+    revert: (id: unknown) => ipcRenderer.invoke(IPC.worktreesRevert, { id }),
+    remove: (id: unknown, deleteBranch: unknown) => ipcRenderer.invoke(IPC.worktreesRemove, { id, deleteBranch }),
+    openFolder: (id: unknown) => ipcRenderer.invoke(IPC.worktreesOpenFolder, { id }),
+    onChanged: (cb: () => void) => subscribe(IPC_EVENTS.worktreesChanged, cb),
   }),
 } as DevFusionApi);
 

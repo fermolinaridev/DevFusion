@@ -13,6 +13,7 @@ import { useAgentStore } from './stores/agentStore';
 import { useAppStore } from './stores/appStore';
 import { useChatStore } from './stores/chatStore';
 import { useUsageStore } from './stores/usageStore';
+import { useGitStore } from './stores/gitStore';
 import { useDoctorStore } from './stores/doctorStore';
 
 export function App() {
@@ -27,6 +28,8 @@ export function App() {
   useEffect(() => initChat(), [initChat]);
   const initUsage = useUsageStore((s) => s.init);
   useEffect(() => initUsage(), [initUsage]);
+  const initGit = useGitStore((s) => s.init);
+  useEffect(() => initGit(), [initGit]);
 
   if (status === 'loading') {
     return <div className="flex h-full items-center justify-center text-muted" role="status">Carregando…</div>;

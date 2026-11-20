@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, shell } from 'electron';
+import type { GitLocation, RepoStatus } from '@shared/git';
 import * as nodePty from 'node-pty';
 import { statfs } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
@@ -13,6 +14,9 @@ import { LoopGuard } from './orchestrator/LoopGuard';
 import { BusError, MessageBus } from './orchestrator/MessageBus';
 import { TaskError, TaskScheduler } from './orchestrator/TaskScheduler';
 import { GitManager } from './workspace/GitManager';
+import { WorktreeRepository } from './database/repositories/WorktreeRepository';
+import { ExplorerError, listDir, watchTree } from './workspace/FileExplorer';
+import { GitOpError, WorktreeManager } from './workspace/WorktreeManager';
 import { ClaudeStatuslineBridge } from './usage/ClaudeStatuslineBridge';
 import { readCodexUsage } from './usage/CodexUsageReader';
 import { UsageService } from './usage/UsageService';
@@ -150,6 +154,26 @@ if (!app.requestSingleInstanceLock()) {
       emit: (msg) => send(IPC_EVENTS.chatMessage, msg),
     });
     const git = new GitManager(runCommand, gitPath, () => detector.childEnv());
+    const worktrees = new WorktreeManager({
+      run: runCommand, gitPath, env: () => detector.childEnv(), repo: new WorktreeRepository(db),
+      worktreesDir: join(userData, 'worktrees'), shorten: (p) => detector.shortenHome(p),
+      audit: (action, target, metadata) => audit.record(action, target, metadata),
+    });
+    const wsRef = () => { const id = workspace.currentId(); const path = workspace.currentPath(); return id && path ? { id, path } : null; };
+    const requireWs = () => { const w = wsRef(); if (!w) throw new GitOpError('Selecione um workspace.'); return w; };
+    const locationPath = (loc: GitLocation) => (loc.kind === 'root' ? requireWs().path : worktrees.activePath(requireWs(), loc.id));
+    // Monitoramento: raiz + worktrees ativos; avisa o renderer para atualizar Explorer/Git.
+    let stopWatchers: Array<() => void> = [];
+    const rewatch = async () => {
+      stopWatchers.forEach((f) => f());
+      stopWatchers = [];
+      const w = wsRef();
+      if (!w) return;
+      const notify = () => send(IPC_EVENTS.fsChanged, {});
+      stopWatchers.push(watchTree(w.path, notify));
+      for (const wt of await worktrees.list(w)) if (wt.present && wt.status !== 'removed') stopWatchers.push(watchTree(worktrees.activePath(w, wt.id), notify));
+    };
+    const worktreesChanged = async () => { await rewatch(); send(IPC_EVENTS.worktreesChanged, {}); };
     const tasks = new TaskScheduler({
       repo: new TaskRepository(db),
       approvals: new ApprovalRepository(db),
@@ -157,20 +181,27 @@ if (!app.requestSingleInstanceLock()) {
       guard,
       workspace: () => { const id = workspace.currentId(); const path = workspace.currentPath(); return id && path ? { id, path } : null; },
       maxRounds: () => settings.getAll().maxReviewRounds,
-      snapshot: (path) => git.reviewSnapshot(path),
+      snapshot: (task) => {
+        const ws = requireWs();
+        if (task.worktreeId) { const b = worktrees.baseOf(ws, task.worktreeId); return git.reviewSnapshot(b.path, b.baseSha); }
+        return git.reviewSnapshot(ws.path);
+      },
+      agentCwd: (a) => agentService.adapter(a).runningCwd(),
+      worktreePath: (id) => { try { return worktrees.activePath(requireWs(), id); } catch { return null; } },
       audit: (action, target, metadata) => audit.record(action, target, metadata),
       emit: (task) => send(IPC_EVENTS.taskUpdated, task),
     });
     /** Erros esperados (regras de negócio) viram mensagem para o usuário; o resto é erro interno. */
     const expected = <T>(fn: () => T): { ok: true; value: T } | { ok: false; reason: string } => {
       try { return { ok: true, value: fn() }; }
-      catch (e) { if (e instanceof BusError || e instanceof TaskError) return { ok: false, reason: e.message }; throw e; }
+      catch (e) { if (e instanceof BusError || e instanceof TaskError || e instanceof GitOpError || e instanceof ExplorerError) return { ok: false, reason: e.message }; throw e; }
     };
     const expectedAsync = async <T>(fn: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false; reason: string }> => {
       try { return { ok: true, value: await fn() }; }
-      catch (e) { if (e instanceof BusError || e instanceof TaskError) return { ok: false, reason: e.message }; throw e; }
+      catch (e) { if (e instanceof BusError || e instanceof TaskError || e instanceof GitOpError || e instanceof ExplorerError) return { ok: false, reason: e.message }; throw e; }
     };
     await workspace.restore(settings.getAll().lastWorkspaceId);
+    await rewatch();
 
     const openAllowed = async (url: string) => {
       const allowed = new Set<string>([...Object.values(DOC_URLS), ...INSTALL_CATALOG.map((e) => e.sourceUrl)]);
@@ -214,6 +245,7 @@ if (!app.requestSingleInstanceLock()) {
         if (agentService.list().some((a) => a.status === 'running')) return { ok: false, reason: 'Encerre os agentes antes de trocar de workspace.' };
         try {
           const info = await workspace.open(chosen);
+          await worktreesChanged();
           settings.set('lastWorkspaceId', info.id);
           send(IPC_EVENTS.workspaceChanged, info);
           audit.record('workspace.open', info.id, {});
@@ -225,8 +257,12 @@ if (!app.requestSingleInstanceLock()) {
         }
       },
       [IPC.agentsList]: () => agentService.list(),
-      [IPC.agentStart]: async ({ agent, kind, cols, rows, permission }) => {
-        try { return { ok: true, value: await agentService.start(agent, kind, cols, rows, permission) }; }
+      [IPC.agentStart]: async ({ agent, kind, cols, rows, permission, worktreeId }) => {
+        try {
+          let at: { path: string; id: string; name: string } | undefined;
+          if (worktreeId) { const ws = requireWs(); const info = await worktrees.get(ws, worktreeId); if (!info.present || info.status === 'removed') throw new GitOpError('Este worktree não está disponível.'); at = { path: worktrees.activePath(ws, worktreeId), id: worktreeId, name: info.name }; }
+          return { ok: true, value: await agentService.start(agent, kind, cols, rows, permission, at) };
+        }
         catch (e) { return { ok: false, reason: (e as Error).message }; }
       },
       [IPC.agentInterrupt]: async ({ agent }) => { await agentService.adapter(agent).interrupt(); },
@@ -240,12 +276,86 @@ if (!app.requestSingleInstanceLock()) {
       [IPC.chatSend]: ({ to, content }) => expectedAsync(() => bus.send({ kind: 'message', sender: 'user', to, content })),
       [IPC.chatForward]: ({ from, to, content }) => expectedAsync(() => bus.send({ kind: 'forward', sender: from, to, content })),
       [IPC.tasksList]: () => tasks.list(),
-      [IPC.tasksCreate]: (input) => expected(() => tasks.create(input)),
+      [IPC.tasksCreate]: ({ worktree, ...input }) => expectedAsync(async () => {
+        if (!worktree) return tasks.create(input);
+        // Modo paralelo: confirma o worktree antes de criar a tarefa.
+        const ws = requireWs();
+        const name = slugify(input.title);
+        const plan = await worktrees.previewCreate(ws, name, (await worktrees.status(ws.path)).branch ?? 'HEAD');
+        if (!(await confirmWorktreeCreate(mainWindow, plan))) return null;
+        const task = tasks.create(input);
+        const wt = await worktrees.create(ws, plan, { name, agent: input.developer, taskId: task.id });
+        await worktreesChanged();
+        return tasks.attachWorktree(task.id, wt.id);
+      }),
       [IPC.tasksPreview]: ({ taskId, action, notes }) => expectedAsync(() => tasks.preview(taskId, action, notes)),
       [IPC.tasksSend]: ({ taskId, action, content }) => expectedAsync(() => tasks.send(taskId, action, content)),
       [IPC.tasksDecide]: ({ taskId, decision, note }) => expected(() => tasks.decide(taskId, decision, note)),
       [IPC.usageGet]: () => usageService.report(),
       [IPC.usageRefresh]: () => usageService.refresh(),
+      [IPC.gitStatus]: async ({ location }): Promise<RepoStatus> => {
+        try { return await worktrees.status(locationPath(location)); }
+        catch { return { isRepo: false, hasCommits: false, branch: null, headSha: null, branches: [], clean: true, files: [] }; }
+      },
+      [IPC.explorerList]: ({ location, rel }) => expectedAsync(async () => { const p = locationPath(location); return listDir(p, rel, (await worktrees.status(p)).files); }),
+      [IPC.explorerDiff]: ({ location, rel }) => expectedAsync(() => worktrees.fileDiff(locationPath(location), rel, location.kind === 'worktree' ? worktrees.baseOf(requireWs(), location.id).baseSha : null)),
+      [IPC.worktreesList]: async () => { const ws = wsRef(); return ws ? worktrees.list(ws) : []; },
+      [IPC.worktreesCreate]: ({ name, baseRef, agent }) => expectedAsync(async () => {
+        const ws = requireWs();
+        const plan = await worktrees.previewCreate(ws, name, baseRef);
+        if (!(await confirmWorktreeCreate(mainWindow, plan))) return null;
+        const wt = await worktrees.create(ws, plan, { name, agent, taskId: null });
+        await worktreesChanged();
+        return wt;
+      }),
+      [IPC.worktreesFiles]: ({ id }) => expectedAsync(() => worktrees.files(requireWs(), id)),
+      [IPC.worktreesCommit]: ({ id, message }) => expectedAsync(async () => { const sha = await worktrees.commit(requireWs(), id, message); send(IPC_EVENTS.worktreesChanged, {}); return sha; }),
+      [IPC.worktreesCheckMerge]: ({ id }) => expectedAsync(() => worktrees.checkMerge(requireWs(), id)),
+      [IPC.worktreesMerge]: ({ id }) => expectedAsync(async () => {
+        const ws = requireWs();
+        const check = await worktrees.checkMerge(ws, id);
+        if (!check.canMerge) throw new GitOpError([...check.blockers, ...(check.conflicts.length ? [`Conflitos previstos em: ${check.conflicts.join(', ')}.`] : [])].join(' '));
+        const info = await worktrees.get(ws, id);
+        const ok = await confirmNative(mainWindow, 'Integrar worktree', `Integrar ${info.branch} em ${check.targetBranch}?`, [
+          `${info.ahead} commit(s) serão integrados com merge --no-ff na raiz do workspace.`,
+          'Nenhum conflito previsto (verificado com git merge-tree, sem alterar nada).',
+          'Depois você pode desfazer com "Desfazer integração" (git revert, histórico preservado). Nada é enviado ao remoto.',
+        ], 'Integrar');
+        if (!ok) return null;
+        const r = await worktrees.merge(ws, id);
+        await worktreesChanged();
+        return r;
+      }),
+      [IPC.worktreesRevert]: ({ id }) => expectedAsync(async () => {
+        const ws = requireWs();
+        const info = await worktrees.get(ws, id);
+        const ok = await confirmNative(mainWindow, 'Desfazer integração', `Desfazer a integração de ${info.branch}?`, [
+          `Cria um commit novo que reverte o merge ${info.mergedSha ?? ''} (git revert -m 1).`,
+          'O histórico não é reescrito. Se houver conflito, a operação é abortada sem mudanças.',
+        ], 'Desfazer integração');
+        if (!ok) return null;
+        const r = await worktrees.revert(ws, id);
+        await worktreesChanged();
+        return r;
+      }),
+      [IPC.worktreesRemove]: ({ id, deleteBranch }) => expectedAsync(async () => {
+        const ws = requireWs();
+        const impact = await worktrees.removalImpact(ws, id);
+        const losses = [
+          impact.uncommitted > 0 ? `${impact.uncommitted} arquivo(s) com alterações NÃO commitadas serão DESCARTADOS.` : 'Não há alterações não commitadas.',
+          deleteBranch ? (impact.unmergedCommits > 0 ? `O branch ${impact.branch} será APAGADO com ${impact.unmergedCommits} commit(s) não integrados (perda definitiva).` : `O branch ${impact.branch} será apagado (já integrado).`) : `O branch ${impact.branch} será mantido.`,
+        ];
+        const ok = await confirmNative(mainWindow, 'Remover worktree', `Remover o worktree de ${impact.branch}?`, losses, 'Remover');
+        if (!ok) return false;
+        await worktrees.remove(ws, id, deleteBranch, true);
+        await worktreesChanged();
+        return true;
+      }),
+      [IPC.worktreesOpenFolder]: ({ id }) => expectedAsync(async () => {
+        const err = await shell.openPath(worktrees.activePath(requireWs(), id));
+        if (err) throw new GitOpError(err);
+        return true;
+      }),
     };
     registerIpc(handlers, () => mainWindow, log);
 
@@ -273,6 +383,29 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 /** Confirmação final da instalação em diálogo nativo do main (não pode ser forjada pelo renderer). */
+/** Confirmação genérica em diálogo nativo do main (não pode ser forjada pelo renderer). */
+async function confirmNative(win: BrowserWindow | null, title: string, message: string, details: string[], okLabel: string): Promise<boolean> {
+  const opts: Electron.MessageBoxOptions = { type: 'question', title, message, detail: details.join('\n\n'), buttons: ['Cancelar', okLabel], defaultId: 0, cancelId: 0, noLink: true };
+  const { response } = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+  return response === 1;
+}
+
+function confirmWorktreeCreate(win: BrowserWindow | null, plan: import('@shared/git').WorktreeCreatePreview): Promise<boolean> {
+  return confirmNative(win, 'Criar worktree', `Criar o branch ${plan.branch} num worktree?`, [
+    `Base: ${plan.baseRef} (${plan.baseSha.slice(0, 10)}).`,
+    `Pasta: ${plan.displayPath} (fora do projeto, gerenciada pelo DevFusion).`,
+    plan.rootUncommitted > 0 ? `ATENÇÃO: a raiz tem ${plan.rootUncommitted} arquivo(s) com alterações não commitadas; elas NÃO vão para o worktree.` : 'A raiz está limpa.',
+    `Comando: ${plan.commands.join(' ; ')}`,
+    'Worktree reduz colisões entre agentes, mas não é sandbox de segurança.',
+  ], 'Criar');
+}
+
+/** "Login seguro com 2FA" → "login-seguro-com-2fa" (limite de 30). */
+function slugify(title: string): string {
+  const s = title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30).replace(/-+$/g, '');
+  return s.length >= 2 ? s : 'tarefa';
+}
+
 async function confirmInstall(win: BrowserWindow | null, method: InstallMethod): Promise<boolean> {
   const detail = [
     `Comando: ${method.commandDisplay ?? '—'}`,

@@ -14,6 +14,10 @@ import {
 } from './orchestration';
 import { SETTINGS_SCHEMA, isSettingKey, type Settings } from './settings';
 import type { UsageReport } from './usage';
+import {
+  ExplorerDiffArgsSchema, ExplorerListArgsSchema, GitStatusArgsSchema, WorktreeCommitArgsSchema, WorktreeCreateArgsSchema, WorktreeIdArgsSchema, WorktreeRemoveArgsSchema,
+  type ExplorerEntry, type GitFileStatus, type GitLocation, type MergeCheck, type RepoStatus, type WorktreeInfo,
+} from './git';
 
 /** Envelope de resposta: erros viajam como dados, sem stack nem detalhes internos. */
 export type IpcErrorCode = 'INVALID_ARGUMENT' | 'FORBIDDEN_SENDER' | 'INTERNAL';
@@ -74,6 +78,18 @@ export const IPC_ARG_SCHEMAS = {
   [IPC.tasksDecide]: TaskDecideArgsSchema,
   [IPC.usageGet]: z.undefined(),
   [IPC.usageRefresh]: z.undefined(),
+  [IPC.gitStatus]: GitStatusArgsSchema,
+  [IPC.explorerList]: ExplorerListArgsSchema,
+  [IPC.explorerDiff]: ExplorerDiffArgsSchema,
+  [IPC.worktreesList]: z.undefined(),
+  [IPC.worktreesCreate]: WorktreeCreateArgsSchema,
+  [IPC.worktreesFiles]: WorktreeIdArgsSchema,
+  [IPC.worktreesCommit]: WorktreeCommitArgsSchema,
+  [IPC.worktreesCheckMerge]: WorktreeIdArgsSchema,
+  [IPC.worktreesMerge]: WorktreeIdArgsSchema,
+  [IPC.worktreesRevert]: WorktreeIdArgsSchema,
+  [IPC.worktreesRemove]: WorktreeRemoveArgsSchema,
+  [IPC.worktreesOpenFolder]: WorktreeIdArgsSchema,
 } as const;
 
 /** Resultado de ações que podem falhar por motivo esperado (mensagem para o usuário). */
@@ -94,7 +110,7 @@ export interface IpcHandlers {
   [IPC.workspaceGet]: () => Promise<WorkspaceInfo | null>;
   [IPC.workspaceChoose]: () => Promise<ActionResult<WorkspaceInfo | null>>;
   [IPC.agentsList]: () => AgentSessionInfo[];
-  [IPC.agentStart]: (arg: { agent: AgentId; kind: SessionKind; cols: number; rows: number; permission: PermissionPreset }) => Promise<ActionResult<AgentSessionInfo>>;
+  [IPC.agentStart]: (arg: { agent: AgentId; kind: SessionKind; cols: number; rows: number; permission: PermissionPreset; worktreeId: string | null }) => Promise<ActionResult<AgentSessionInfo>>;
   [IPC.agentInterrupt]: (arg: { agent: AgentId }) => Promise<void>;
   [IPC.agentStop]: (arg: { agent: AgentId }) => Promise<AgentSessionInfo>;
   [IPC.agentsStopAll]: () => Promise<AgentSessionInfo[]>;
@@ -106,10 +122,23 @@ export interface IpcHandlers {
   [IPC.chatSend]: (arg: { to: ChatTarget; content: string }) => Promise<ActionResult<ChatMessage>>;
   [IPC.chatForward]: (arg: { from: AgentId; to: AgentId; content: string }) => Promise<ActionResult<ChatMessage>>;
   [IPC.tasksList]: () => Task[];
-  [IPC.tasksCreate]: (arg: { title: string; description: string; criteria: string[]; developer: AgentId; reviewer: AgentId }) => ActionResult<Task>;
+  [IPC.tasksCreate]: (arg: { title: string; description: string; criteria: string[]; developer: AgentId; reviewer: AgentId; worktree: boolean }) => Promise<ActionResult<Task | null>>;
   [IPC.tasksPreview]: (arg: { taskId: string; action: TaskOutbound; notes?: string }) => Promise<ActionResult<OutboundPreview>>;
   [IPC.tasksSend]: (arg: { taskId: string; action: TaskOutbound; content: string }) => Promise<ActionResult<Task>>;
   [IPC.tasksDecide]: (arg: { taskId: string; decision: TaskDecision; note?: string }) => ActionResult<Task>;
   [IPC.usageGet]: () => UsageReport;
   [IPC.usageRefresh]: () => Promise<UsageReport>;
+  [IPC.gitStatus]: (arg: { location: GitLocation }) => Promise<RepoStatus>;
+  [IPC.explorerList]: (arg: { location: GitLocation; rel: string }) => Promise<ActionResult<ExplorerEntry[]>>;
+  [IPC.explorerDiff]: (arg: { location: GitLocation; rel: string }) => Promise<ActionResult<string>>;
+  [IPC.worktreesList]: () => Promise<WorktreeInfo[]>;
+  /** Pede confirmação nativa; `value: null` = usuário recusou. */
+  [IPC.worktreesCreate]: (arg: { name: string; baseRef: string; agent: AgentId | null }) => Promise<ActionResult<WorktreeInfo | null>>;
+  [IPC.worktreesFiles]: (arg: { id: string }) => Promise<ActionResult<GitFileStatus[]>>;
+  [IPC.worktreesCommit]: (arg: { id: string; message: string }) => Promise<ActionResult<string>>;
+  [IPC.worktreesCheckMerge]: (arg: { id: string }) => Promise<ActionResult<MergeCheck>>;
+  [IPC.worktreesMerge]: (arg: { id: string }) => Promise<ActionResult<WorktreeInfo | null>>;
+  [IPC.worktreesRevert]: (arg: { id: string }) => Promise<ActionResult<WorktreeInfo | null>>;
+  [IPC.worktreesRemove]: (arg: { id: string; deleteBranch: boolean }) => Promise<ActionResult<boolean>>;
+  [IPC.worktreesOpenFolder]: (arg: { id: string }) => Promise<ActionResult<boolean>>;
 }

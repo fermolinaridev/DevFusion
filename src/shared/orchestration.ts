@@ -42,6 +42,8 @@ export interface Task {
   /** Pedidos de revisão já feitos. */
   rounds: number;
   maxRounds: number;
+  /** Worktree próprio da tarefa (modo paralelo), se houver. */
+  worktreeId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -86,6 +88,8 @@ export const TaskCreateArgsSchema = z
     criteria: z.array(z.string().trim().min(1).max(500)).max(30),
     developer: agent,
     reviewer: agent,
+    /** Criar worktree próprio (branch isolado) para a tarefa. */
+    worktree: z.boolean().default(false),
   })
   .strict()
   .refine((t) => t.developer !== t.reviewer, 'Desenvolvedor e revisor precisam ser agentes diferentes');

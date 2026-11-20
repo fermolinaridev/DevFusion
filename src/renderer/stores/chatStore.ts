@@ -12,7 +12,7 @@ interface ChatState {
   reload(): Promise<void>;
   send(to: ChatTarget, content: string): Promise<Result<ChatMessage>>;
   forward(from: AgentId, to: AgentId, content: string): Promise<Result<ChatMessage>>;
-  createTask(input: { title: string; description: string; criteria: string[]; developer: AgentId; reviewer: AgentId }): Promise<Result<Task>>;
+  createTask(input: { title: string; description: string; criteria: string[]; developer: AgentId; reviewer: AgentId; worktree: boolean }): Promise<Result<Task | null>>;
   previewTask(taskId: string, action: TaskOutbound, notes?: string): Promise<Result<OutboundPreview>>;
   sendTask(taskId: string, action: TaskOutbound, content: string): Promise<Result<Task>>;
   decideTask(taskId: string, decision: TaskDecision, note?: string): Promise<Result<Task>>;

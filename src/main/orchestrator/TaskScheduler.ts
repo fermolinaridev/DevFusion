@@ -16,7 +16,11 @@ export interface TaskSchedulerDeps {
   guard: LoopGuard;
   workspace: () => { id: string; path: string } | null;
   maxRounds: () => number;
-  snapshot: (path: string) => Promise<ReviewSnapshot>;
+  /** Diff para revisão: da raiz ou, se a tarefa tiver worktree, desde a base do worktree. */
+  snapshot: (task: Task) => Promise<ReviewSnapshot>;
+  /** Pasta onde o agente está rodando agora (null = parado) e pasta do worktree da tarefa. */
+  agentCwd?: (agent: Task['developer']) => string | null;
+  worktreePath?: (worktreeId: string) => string | null;
   audit: (action: string, target: string, metadata: Record<string, unknown>) => void;
   emit: (task: Task) => void;
 }
@@ -38,7 +42,7 @@ export class TaskScheduler {
   create(input: { title: string; description: string; criteria: string[]; developer: Task['developer']; reviewer: Task['reviewer'] }): Task {
     const ws = this.requireWorkspace();
     const now = new Date().toISOString();
-    const task: Task = { id: randomUUID(), workspaceId: ws.id, ...input, status: 'draft', rounds: 0, maxRounds: this.d.maxRounds(), createdAt: now, updatedAt: now };
+    const task: Task = { id: randomUUID(), workspaceId: ws.id, ...input, status: 'draft', rounds: 0, maxRounds: this.d.maxRounds(), worktreeId: null, createdAt: now, updatedAt: now };
     this.d.repo.insert(task);
     this.d.audit('task.create', task.id, { developer: task.developer, reviewer: task.reviewer });
     this.d.bus.event(`Tarefa criada: "${task.title}" — desenvolvedor ${AGENT_NAMES[task.developer]}, revisor ${AGENT_NAMES[task.reviewer]}.`, task.id);
@@ -55,9 +59,17 @@ export class TaskScheduler {
       if (!notes?.trim()) throw new TaskError('Cole ou selecione os apontamentos do revisor para enviar ao desenvolvedor.');
       return { target: task.developer, content: correctionPrompt(task, notes.trim()), warnings: [] };
     }
-    const ws = this.requireWorkspace();
-    const snap = await this.d.snapshot(ws.path);
+    this.requireWorkspace();
+    const snap = await this.d.snapshot(task);
     return { target: task.reviewer, content: reviewPrompt(task, snap), warnings: snap.warnings };
+  }
+
+  /** Vincula um worktree recém-criado à tarefa. */
+  attachWorktree(taskId: string, worktreeId: string): Task {
+    this.d.repo.setWorktree(taskId, worktreeId);
+    const t = this.get(taskId);
+    this.d.emit(t);
+    return t;
   }
 
   /** Envia (cola no terminal) o texto aprovado pelo usuário e aplica a transição. */
@@ -112,6 +124,11 @@ export class TaskScheduler {
       if (!this.d.guard.canRequestReview(task)) throw new TaskError(`Limite de ${task.maxRounds} rodada(s) de revisão atingido. Aprove, rejeite ou cancele a tarefa.`);
     }
     if (action === 'send_corrections' && (task.status !== 'in_progress' || task.rounds === 0)) throw new TaskError('Correções só depois de uma revisão com pedido de mudanças.');
+    // Tarefa em worktree: o desenvolvedor precisa estar rodando dentro dele (evita mexer na raiz por engano).
+    if (task.worktreeId && action !== 'request_review' && this.d.agentCwd && this.d.worktreePath) {
+      const wt = this.d.worktreePath(task.worktreeId);
+      if (wt && this.d.agentCwd(task.developer) !== wt) throw new TaskError(`Inicie ${AGENT_NAMES[task.developer]} no worktree desta tarefa antes de enviar (seletor de local no painel do agente).`);
+    }
   }
 
   private transition(task: Task, next: { status: TaskStatus; rounds: number }, action: string, note?: string): Task {

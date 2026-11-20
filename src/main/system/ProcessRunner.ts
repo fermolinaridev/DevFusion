@@ -13,6 +13,11 @@ export interface RunOptions {
   onOutput?: (chunk: string) => void;
   /** Conteúdo para stdin; quando ausente stdin é fechado imediatamente. */
   input?: string;
+  /**
+   * Devolve stdout/stderr sem sanitização, para leitura interna (ex.: caminhos e SHAs do Git).
+   * Nunca registrar em log o resultado de uma execução `raw`.
+   */
+  raw?: boolean;
 }
 
 export interface RunResult {
@@ -117,7 +122,7 @@ export const runCommand: CommandRunner = (file, args, opts) =>
         exitCode: null, signal: null, notFound: false, permissionDenied: false, spawnError: null,
         ...partial,
         timedOut, cancelled,
-        stdout: redact(stdout, HOME), stderr: redact(stderr, HOME),
+        stdout: opts.raw ? stdout : redact(stdout, HOME), stderr: opts.raw ? stderr : redact(stderr, HOME),
         durationMs: Date.now() - started,
       };
     }

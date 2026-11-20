@@ -138,4 +138,28 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX idx_tasks_workspace_updated ON tasks(workspace_id, updated_at);
     `,
   },
+  {
+    version: 4,
+    name: 'worktrees',
+    sql: `
+      CREATE TABLE worktrees (
+        id            TEXT PRIMARY KEY,
+        workspace_id  TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        path          TEXT NOT NULL UNIQUE,
+        branch        TEXT NOT NULL,
+        base_ref      TEXT NOT NULL,
+        base_sha      TEXT NOT NULL,
+        agent         TEXT CHECK (agent IN ('claude', 'codex')),
+        task_id       TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+        status        TEXT NOT NULL CHECK (status IN ('active', 'merged', 'reverted', 'removed')),
+        merged_sha    TEXT,
+        pre_merge_sha TEXT,
+        created_at    TEXT NOT NULL,
+        updated_at    TEXT NOT NULL
+      );
+      CREATE INDEX idx_worktrees_workspace ON worktrees(workspace_id, status);
+      ALTER TABLE tasks ADD COLUMN worktree_id TEXT REFERENCES worktrees(id) ON DELETE SET NULL;
+    `,
+  },
 ];

@@ -2,9 +2,9 @@ import type { AgentId } from '@shared/agents';
 import type { Task, TaskStatus } from '@shared/orchestration';
 import type { Db } from '../Database';
 
-interface Row { id: string; workspace_id: string; title: string; description: string; criteria_json: string; assignee: string; reviewer: string; status: string; rounds: number; max_rounds: number; created_at: string; updated_at: string }
+interface Row { id: string; workspace_id: string; title: string; description: string; criteria_json: string; assignee: string; reviewer: string; status: string; rounds: number; max_rounds: number; worktree_id: string | null; created_at: string; updated_at: string }
 
-const COLS = 'id, workspace_id, title, description, criteria_json, assignee, reviewer, status, rounds, max_rounds, created_at, updated_at';
+const COLS = 'id, workspace_id, title, description, criteria_json, assignee, reviewer, status, rounds, max_rounds, worktree_id, created_at, updated_at';
 
 export class TaskRepository {
   constructor(private readonly db: Db) {}
@@ -17,6 +17,10 @@ export class TaskRepository {
 
   update(id: string, patch: { status: TaskStatus; rounds: number }): void {
     this.db.prepare('UPDATE tasks SET status = ?, rounds = ?, updated_at = ? WHERE id = ?').run(patch.status, patch.rounds, new Date().toISOString(), id);
+  }
+
+  setWorktree(id: string, worktreeId: string): void {
+    this.db.prepare('UPDATE tasks SET worktree_id = ?, updated_at = ? WHERE id = ?').run(worktreeId, new Date().toISOString(), id);
   }
 
   byId(id: string): Task | null {
@@ -32,5 +36,5 @@ export class TaskRepository {
 function toTask(r: Row): Task {
   let criteria: string[] = [];
   try { const c: unknown = JSON.parse(r.criteria_json); if (Array.isArray(c)) criteria = c.filter((x): x is string => typeof x === 'string'); } catch { /* critérios corrompidos: lista vazia */ }
-  return { id: r.id, workspaceId: r.workspace_id, title: r.title, description: r.description, criteria, developer: r.assignee as AgentId, reviewer: r.reviewer as AgentId, status: r.status as TaskStatus, rounds: r.rounds, maxRounds: r.max_rounds, createdAt: r.created_at, updatedAt: r.updated_at };
+  return { id: r.id, workspaceId: r.workspace_id, title: r.title, description: r.description, criteria, developer: r.assignee as AgentId, reviewer: r.reviewer as AgentId, status: r.status as TaskStatus, rounds: r.rounds, maxRounds: r.max_rounds, worktreeId: r.worktree_id, createdAt: r.created_at, updatedAt: r.updated_at };
 }

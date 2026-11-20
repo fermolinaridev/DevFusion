@@ -4,6 +4,7 @@ import type { ActionResult, AppInfo, IpcResult } from '../shared/ipcContracts';
 import type { ChatMessage, ChatTarget, OutboundPreview, PermissionPreset, Task, TaskDecision, TaskOutbound } from '../shared/orchestration';
 import type { Settings } from '../shared/settings';
 import type { UsageReport } from '../shared/usage';
+import type { ExplorerEntry, GitFileStatus, GitLocation, MergeCheck, RepoStatus, WorktreeInfo } from '../shared/git';
 
 export interface DevFusionApi {
   app: {
@@ -39,7 +40,7 @@ export interface DevFusionApi {
   };
   agents: {
     list(): Promise<IpcResult<AgentSessionInfo[]>>;
-    start(agent: AgentId, kind: SessionKind, cols: number, rows: number, permission?: PermissionPreset): Promise<IpcResult<ActionResult<AgentSessionInfo>>>;
+    start(agent: AgentId, kind: SessionKind, cols: number, rows: number, permission?: PermissionPreset, worktreeId?: string | null): Promise<IpcResult<ActionResult<AgentSessionInfo>>>;
     interrupt(agent: AgentId): Promise<IpcResult<void>>;
     stop(agent: AgentId): Promise<IpcResult<AgentSessionInfo>>;
     stopAll(): Promise<IpcResult<AgentSessionInfo[]>>;
@@ -61,7 +62,7 @@ export interface DevFusionApi {
   };
   tasks: {
     list(): Promise<IpcResult<Task[]>>;
-    create(input: { title: string; description: string; criteria: string[]; developer: AgentId; reviewer: AgentId }): Promise<IpcResult<ActionResult<Task>>>;
+    create(input: { title: string; description: string; criteria: string[]; developer: AgentId; reviewer: AgentId; worktree: boolean }): Promise<IpcResult<ActionResult<Task | null>>>;
     preview(taskId: string, action: TaskOutbound, notes?: string): Promise<IpcResult<ActionResult<OutboundPreview>>>;
     send(taskId: string, action: TaskOutbound, content: string): Promise<IpcResult<ActionResult<Task>>>;
     decide(taskId: string, decision: TaskDecision, note?: string): Promise<IpcResult<ActionResult<Task>>>;
@@ -71,6 +72,24 @@ export interface DevFusionApi {
     get(): Promise<IpcResult<UsageReport>>;
     refresh(): Promise<IpcResult<UsageReport>>;
     onChanged(cb: (report: UsageReport) => void): () => void;
+  };
+  git: {
+    status(location: GitLocation): Promise<IpcResult<RepoStatus>>;
+    list(location: GitLocation, rel: string): Promise<IpcResult<ActionResult<ExplorerEntry[]>>>;
+    fileDiff(location: GitLocation, rel: string): Promise<IpcResult<ActionResult<string>>>;
+    onFsChanged(cb: () => void): () => void;
+  };
+  worktrees: {
+    list(): Promise<IpcResult<WorktreeInfo[]>>;
+    create(name: string, baseRef: string, agent: AgentId | null): Promise<IpcResult<ActionResult<WorktreeInfo | null>>>;
+    files(id: string): Promise<IpcResult<ActionResult<GitFileStatus[]>>>;
+    commit(id: string, message: string): Promise<IpcResult<ActionResult<string>>>;
+    checkMerge(id: string): Promise<IpcResult<ActionResult<MergeCheck>>>;
+    merge(id: string): Promise<IpcResult<ActionResult<WorktreeInfo | null>>>;
+    revert(id: string): Promise<IpcResult<ActionResult<WorktreeInfo | null>>>;
+    remove(id: string, deleteBranch: boolean): Promise<IpcResult<ActionResult<boolean>>>;
+    openFolder(id: string): Promise<IpcResult<ActionResult<boolean>>>;
+    onChanged(cb: () => void): () => void;
   };
 }
 

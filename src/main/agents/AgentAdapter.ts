@@ -12,7 +12,7 @@ export interface AgentAdapter {
   checkInstallation(): Promise<boolean>;
   checkAuthentication(): Promise<boolean | 'unknown'>;
   capabilities(): Promise<AgentCapabilities>;
-  startSession(workspace: string, opts: { kind: SessionKind; cols: number; rows: number; permission?: PermissionPreset }): Promise<void>;
+  startSession(workspace: string, opts: { kind: SessionKind; cols: number; rows: number; permission?: PermissionPreset; location?: { kind: 'root' } | { kind: 'worktree'; id: string; name: string } }): Promise<void>;
   sendMessage(message: string): Promise<void>;
   getStatus(): AgentStatus;
   interrupt(): Promise<void>;

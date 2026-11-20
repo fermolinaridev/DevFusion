@@ -3,6 +3,7 @@ import { AGENT_NAMES, type AgentId } from '@shared/agents';
 import type { Task, TaskDecision, TaskOutbound, TaskStatus } from '@shared/orchestration';
 import { useAgentStore } from '../../stores/agentStore';
 import { useChatStore } from '../../stores/chatStore';
+import { useGitStore } from '../../stores/gitStore';
 import { terminalSelection } from '../agents/TerminalView';
 import { OutboundDialog, type OutboundDraft } from '../chat/OutboundDialog';
 import { Button } from '../ui/Modal';
@@ -54,11 +55,13 @@ function TaskForm({ onCreated }: { onCreated: (t: Task) => void }) {
   const [description, setDescription] = useState('');
   const [criteria, setCriteria] = useState('');
   const [developer, setDeveloper] = useState<AgentId>('claude');
+  const [worktree, setWorktree] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const reviewer: AgentId = developer === 'claude' ? 'codex' : 'claude';
   const submit = async () => {
-    const r = await createTask({ title, description, criteria: criteria.split('\n').map((c) => c.trim()).filter(Boolean), developer, reviewer });
+    const r = await createTask({ title, description, criteria: criteria.split('\n').map((c) => c.trim()).filter(Boolean), developer, reviewer, worktree });
     if (!r.ok) { setError(r.reason); return; }
+    if (!r.value) { setError('Criação cancelada (worktree não confirmado).'); return; }
     onCreated(r.value);
   };
   const input = 'w-full rounded border border-border bg-bg px-2 py-1';
@@ -73,7 +76,9 @@ function TaskForm({ onCreated }: { onCreated: (t: Task) => void }) {
           <option value="codex">Codex</option>
         </select>
       </label>
-      <p className="text-xs text-muted">Revisor: {AGENT_NAMES[reviewer]}. Dica: inicie o revisor com “Permissões: somente leitura”.</p>
+      <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} data-testid="task-worktree" />
+        <span>Trabalhar em worktree próprio (branch isolado; modo paralelo). A revisão usa o diff desse branch.</span></label>
+      <p className="text-xs text-muted">Revisor: {AGENT_NAMES[reviewer]}. Dica: inicie o revisor com permissões “somente leitura”.</p>
       {error && <p role="alert" className="text-xs text-warn" data-testid="task-error">{error}</p>}
       <Button type="submit" variant="primary" data-testid="task-create">Criar tarefa</Button>
     </form>
@@ -82,6 +87,7 @@ function TaskForm({ onCreated }: { onCreated: (t: Task) => void }) {
 
 function TaskDetail({ task, onBack }: { task: Task; onBack: () => void }) {
   const { previewTask, sendTask, decideTask } = useChatStore();
+  const wt = useGitStore((s) => s.worktrees.find((w) => w.id === task.worktreeId));
   const [draft, setDraft] = useState<OutboundDraft | null>(null);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +110,7 @@ function TaskDetail({ task, onBack }: { task: Task; onBack: () => void }) {
       <button type="button" className="self-start text-xs text-accent hover:underline" onClick={onBack}>← Tarefas</button>
       <h3 className="font-semibold">{task.title}</h3>
       <p className="text-xs text-muted" data-testid="task-status">{STATUS[task.status]} · {AGENT_NAMES[task.developer]} desenvolve, {AGENT_NAMES[task.reviewer]} revisa · revisões {task.rounds}/{task.maxRounds}</p>
+      {wt && <p className="rounded bg-surface-2 px-2 py-1 text-xs" data-testid="task-worktree-info">Worktree <strong>{wt.name}</strong> ({wt.branch}). Inicie {AGENT_NAMES[task.developer]} nele pelo seletor de local no painel do agente; integre pela aba Git depois da aprovação.</p>}
       {task.description && <p className="whitespace-pre-wrap">{task.description}</p>}
       {task.criteria.length > 0 && <ul className="list-disc pl-5 text-xs">{task.criteria.map((c) => <li key={c}>{c}</li>)}</ul>}
 

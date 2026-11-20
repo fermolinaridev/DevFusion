@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { MigrationError, migrate, openDatabase } from '../../src/main/database/Database';
 import { MIGRATIONS } from '../../src/main/database/migrations';
 
-const EXPECTED_TABLES = ['agents', 'approvals', 'audit_logs', 'dependencies', 'executions', 'git_snapshots', 'messages', 'schema_migrations', 'sessions', 'settings', 'tasks', 'workspaces'];
+const EXPECTED_TABLES = ['agents', 'approvals', 'audit_logs', 'dependencies', 'executions', 'git_snapshots', 'messages', 'schema_migrations', 'sessions', 'settings', 'tasks', 'workspaces', 'worktrees'];
 
 describe('migrações', () => {
   it('cria todas as tabelas em banco novo e liga foreign_keys', () => {
