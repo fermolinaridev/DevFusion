@@ -35,7 +35,7 @@ describe('banco ilegível', () => {
     const file = join(dir, 'devfusion.sqlite');
     writeFileSync(file, 'isto não é um banco sqlite '.repeat(100));
     writeFileSync(`${file}-wal`, 'wal');
-    expect(() => { const db = openDatabase(file); migrate(db); }).toThrow();
+    expect(() => { const db = openDatabase(file); try { migrate(db); } finally { db.close(); } }).toThrow();
     const moved = quarantineDatabase(file, new Date('2026-11-20T12:00:00Z'));
     expect(moved).toBe(`${file}.ilegivel-2026-11-20T12-00-00-000Z`);
     expect(existsSync(file)).toBe(false);

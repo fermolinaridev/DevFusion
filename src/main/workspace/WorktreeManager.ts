@@ -92,7 +92,7 @@ export class WorktreeManager {
     await this.must(ws.path, ['worktree', 'add', '-b', plan.branch, path, plan.baseSha], 'Falha ao criar o worktree');
     const now = new Date().toISOString();
     const row: WorktreeRow = {
-      id: randomUUID(), workspace_id: ws.id, name: meta.name, path: realpathSync(path), branch: plan.branch, base_ref: plan.baseRef, base_sha: plan.baseSha,
+      id: randomUUID(), workspace_id: ws.id, name: meta.name, path: realpathSync.native(path), branch: plan.branch, base_ref: plan.baseRef, base_sha: plan.baseSha,
       agent: meta.agent, task_id: meta.taskId, status: 'active', merged_sha: null, pre_merge_sha: null, created_at: now, updated_at: now,
     };
     this.d.repo.insert(row);
@@ -152,7 +152,7 @@ export class WorktreeManager {
   /** Diff de um arquivo para exibição local (somente leitura). Arquivo novo: conteúdo como adição. */
   async fileDiff(root: string, rel: string, base: string | null): Promise<string> {
     const real = await resolveInside(root, rel);
-    const relNorm = relPath(realpathSync(root), real).split(sep).join('/');
+    const relNorm = relPath(realpathSync.native(root), real).split(sep).join('/');
     const tracked = await this.git(root, ['ls-files', '--error-unmatch', '--', relNorm]);
     if (tracked.exitCode !== 0) {
       const st = await fsp.stat(real);
@@ -284,7 +284,7 @@ export class WorktreeManager {
   }
 }
 
-function safeReal(p: string): string { try { return realpathSync(p); } catch { return p; } }
+function safeReal(p: string): string { try { return realpathSync.native(p); } catch { return p; } }
 
 export function kindOf(xy: string): GitFileKind {
   if (xy === '??') return 'untracked';

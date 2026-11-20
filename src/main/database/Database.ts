@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, renameSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readSync, renameSync, statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { MIGRATIONS, type Migration } from './migrations';
@@ -10,15 +10,41 @@ export type Db = DatabaseSync;
  * (validado no Electron 45 / Node 24), evitando addon nativo e problemas de ABI.
  */
 export function openDatabase(file: string): Db {
-  if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
+  if (file !== ':memory:') {
+    mkdirSync(dirname(file), { recursive: true });
+    assertSqliteHeader(file);
+  }
   const db = new DatabaseSync(file);
-  db.exec('PRAGMA foreign_keys = ON;');
-  db.exec('PRAGMA busy_timeout = 5000;');
-  if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL;');
+  try {
+    db.exec('PRAGMA foreign_keys = ON;');
+    db.exec('PRAGMA busy_timeout = 5000;');
+    if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL;');
+  } catch (e) {
+    // Arquivo ilegível: fecha antes de propagar (no Windows, um arquivo aberto não pode ser movido).
+    db.close();
+    throw e;
+  }
   return db;
 }
 
 export class MigrationError extends Error {}
+
+const SQLITE_HEADER = Buffer.from('SQLite format 3\0', 'binary');
+
+/**
+ * Recusa arquivos que não são SQLite ANTES de abrir uma conexão: abrir e fechar um arquivo
+ * ilegível pode fazer o SQLite apagar o -wal ao lado (perdendo transações) e, no Windows,
+ * deixar o arquivo preso. Arquivo inexistente ou vazio é aceito (banco novo).
+ */
+function assertSqliteHeader(file: string): void {
+  if (!existsSync(file) || statSync(file).size === 0) return;
+  const fd = openSync(file, 'r');
+  try {
+    const head = Buffer.alloc(16);
+    readSync(fd, head, 0, 16, 0);
+    if (!head.equals(SQLITE_HEADER)) throw new MigrationError('O arquivo não é um banco SQLite válido (cabeçalho inesperado).');
+  } finally { closeSync(fd); }
+}
 
 /** Aplica migrações pendentes, cada uma em transação. Retorna a versão final do schema. */
 export function migrate(db: Db, migrations: readonly Migration[] = MIGRATIONS): number {

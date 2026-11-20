@@ -13,7 +13,7 @@ const HIDDEN = new Set(['.git']);
  */
 export async function resolveInside(root: string, rel: string): Promise<string> {
   if (isAbsolute(rel)) throw new ExplorerError('Caminho absoluto não permitido.');
-  const realRoot = realpathSync(root);
+  const realRoot = realpathSync.native(root);
   const target = join(realRoot, rel);
   let real: string;
   try { real = await fsp.realpath(target); } catch { throw new ExplorerError('Arquivo ou pasta não encontrado.'); }
@@ -27,7 +27,7 @@ export async function listDir(root: string, rel: string, status: GitFileStatus[]
   const dir = await resolveInside(root, rel);
   const st = await fsp.stat(dir);
   if (!st.isDirectory()) throw new ExplorerError('Não é uma pasta.');
-  const realRoot = realpathSync(root);
+  const realRoot = realpathSync.native(root);
   const byPath = new Map(status.map((f) => [f.path, f.kind]));
   const entries = (await fsp.readdir(dir, { withFileTypes: true })).filter((e) => !HIDDEN.has(e.name)).slice(0, MAX_ENTRIES);
   const out: ExplorerEntry[] = [];

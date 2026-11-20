@@ -48,11 +48,11 @@ jobs:
 
       - name: E2E (Linux, display virtual)
         if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum npx playwright test
+        run: xvfb-run --auto-servernum npx playwright test --reporter=list,github
 
       - name: E2E (Windows)
         if: runner.os == 'Windows'
-        run: npx playwright test
+        run: npx playwright test --reporter=list,github
 
       - name: Guardar resultados em caso de falha
         if: failure()
