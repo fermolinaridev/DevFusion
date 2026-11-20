@@ -19,8 +19,8 @@ Estimativa inicial de referência: 13 semanas de trabalho individual; não é pr
 - [x] Registrar resultado e limitações. Bloquear automação não suportada. Ver [09-FASE0-POC.md](09-FASE0-POC.md).
 
 ## 1 — Fundação
-- [ ] Electron/React/TypeScript/Vite/Tailwind, preload e IPC seguro.
-- [ ] SQLite, migrações, configurações e layout inicial.
+- [x] Electron/React/TypeScript/Vite/Tailwind, preload e IPC seguro.
+- [x] SQLite, migrações, configurações e layout inicial. Ver [10-FASE1-FUNDACAO.md](10-FASE1-FUNDACAO.md) (validado no macOS; Windows pendente).
 
 ## 2 — System Doctor
 - [ ] Detectar SO, PATH, versões, autenticação, internet, disco e permissões.

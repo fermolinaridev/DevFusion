@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2023",
+      "DOM"
+    ]
+  },
+  "include": [
+    "tests/e2e/**/*",
+    "playwright.config.ts",
+    "src/preload/api.d.ts"
+  ]
+}

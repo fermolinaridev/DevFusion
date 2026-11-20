@@ -12,7 +12,17 @@ Aplicativo desktop local para utilizar Claude Code e Codex em uma única interfa
 - [Roadmap](docs/07-ROADMAP.md)
 - [Segurança, testes e distribuição](docs/08-SEGURANCA.md)
 - [Fase 0 — resultado da prova de conceito](docs/09-FASE0-POC.md)
+- [Fase 1 — fundação Electron](docs/10-FASE1-FUNDACAO.md)
 - [Prompt de implementação](PROMPT.md)
 - [Instruções dos agentes](AGENTS.md) e [CLAUDE.md](CLAUDE.md)
 
-Estado atual: Fase 0 (prova de conceito) em `poc/`; o aplicativo Electron ainda não foi implementado. Windows é a prioridade inicial; macOS e Linux serão homologados separadamente. A automação via assinaturas deve ser validada antes de investir em funcionalidades avançadas. Não extrair credenciais, contornar limites nem presumir permissão de automação. Se não houver integração suportada, manter os terminais oficiais e transferência manual de mensagens.
+Estado atual: Fase 1 concluída no macOS — base Electron com IPC seguro, SQLite e layout inicial. Os agentes ainda não rodam dentro do app (Fase 3). A POC da Fase 0 está em `poc/`.
+
+## Desenvolvimento
+Requisitos: Node.js ≥ 22.13 e npm.
+
+```bash
+npm install
+npm run dev        # abre o app em modo desenvolvimento
+npm run check      # typecheck + testes unitários + build + testes E2E
+``` Windows é a prioridade inicial; macOS e Linux serão homologados separadamente. A automação via assinaturas deve ser validada antes de investir em funcionalidades avançadas. Não extrair credenciais, contornar limites nem presumir permissão de automação. Se não houver integração suportada, manter os terminais oficiais e transferência manual de mensagens.
