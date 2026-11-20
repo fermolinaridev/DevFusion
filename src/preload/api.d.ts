@@ -3,6 +3,7 @@ import type { AgentId, AgentSessionInfo, SessionKind, WorkspaceInfo } from '../s
 import type { ActionResult, AppInfo, IpcResult } from '../shared/ipcContracts';
 import type { ChatMessage, ChatTarget, OutboundPreview, PermissionPreset, Task, TaskDecision, TaskOutbound } from '../shared/orchestration';
 import type { Settings } from '../shared/settings';
+import type { UsageReport } from '../shared/usage';
 
 export interface DevFusionApi {
   app: {
@@ -65,6 +66,11 @@ export interface DevFusionApi {
     send(taskId: string, action: TaskOutbound, content: string): Promise<IpcResult<ActionResult<Task>>>;
     decide(taskId: string, decision: TaskDecision, note?: string): Promise<IpcResult<ActionResult<Task>>>;
     onUpdated(cb: (task: Task) => void): () => void;
+  };
+  usage: {
+    get(): Promise<IpcResult<UsageReport>>;
+    refresh(): Promise<IpcResult<UsageReport>>;
+    onChanged(cb: (report: UsageReport) => void): () => void;
   };
 }
 

@@ -14,7 +14,7 @@ const COLOR: Record<AgentId, string> = { claude: 'text-claude', codex: 'text-cod
 const OTHER: Record<AgentId, AgentId> = { claude: 'codex', codex: 'claude' };
 const IS_MAC = navigator.userAgent.includes('Mac');
 const SELECT_HINT = `Selecione texto no terminal para encaminhar. Se a CLI capturar o mouse (ex.: Codex), segure ${IS_MAC ? '⌥ Option' : 'Shift'} enquanto seleciona.`;
-const PERMISSION_LABEL: Record<PermissionPreset, string> = { 'cli-default': 'Permissões: padrão da CLI', 'read-only': 'Permissões: somente leitura' };
+const PERMISSION_LABEL: Record<PermissionPreset, string> = { 'cli-default': 'padrão da CLI', 'read-only': 'somente leitura' };
 const PERMISSION_HELP: Record<AgentId, string> = {
   claude: 'Somente leitura inicia com --permission-mode plan (planejamento, sem editar). Padrão da CLI usa suas configurações do Claude Code.',
   codex: 'Somente leitura inicia com --sandbox read-only --ask-for-approval on-request. Padrão da CLI usa suas configurações do Codex.',

@@ -12,6 +12,7 @@ import { Onboarding } from './pages/Onboarding';
 import { useAgentStore } from './stores/agentStore';
 import { useAppStore } from './stores/appStore';
 import { useChatStore } from './stores/chatStore';
+import { useUsageStore } from './stores/usageStore';
 import { useDoctorStore } from './stores/doctorStore';
 
 export function App() {
@@ -24,6 +25,8 @@ export function App() {
   useEffect(() => initAgents(), [initAgents]);
   const initChat = useChatStore((s) => s.init);
   useEffect(() => initChat(), [initChat]);
+  const initUsage = useUsageStore((s) => s.init);
+  useEffect(() => initUsage(), [initUsage]);
 
   if (status === 'loading') {
     return <div className="flex h-full items-center justify-center text-muted" role="status">Carregando…</div>;

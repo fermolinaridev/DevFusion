@@ -68,6 +68,11 @@ const api: DevFusionApi = Object.freeze({
     decide: (taskId: unknown, decision: unknown, note?: unknown) => ipcRenderer.invoke(IPC.tasksDecide, { taskId, decision, ...(note === undefined ? {} : { note }) }),
     onUpdated: (cb: (t: never) => void) => subscribe(IPC_EVENTS.taskUpdated, cb),
   }),
+  usage: Object.freeze({
+    get: () => ipcRenderer.invoke(IPC.usageGet),
+    refresh: () => ipcRenderer.invoke(IPC.usageRefresh),
+    onChanged: (cb: (r: never) => void) => subscribe(IPC_EVENTS.usage, cb),
+  }),
 } as DevFusionApi);
 
 contextBridge.exposeInMainWorld('devfusion', api);

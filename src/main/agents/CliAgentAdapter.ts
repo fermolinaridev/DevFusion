@@ -27,6 +27,8 @@ export interface CliAgentDeps {
   onChange: (info: AgentSessionInfo) => void;
   onSessionCreated?: (sessionId: string, agent: AgentId, kind: SessionKind) => void;
   onSessionEnded?: (sessionId: string, status: AgentStatus, kind: SessionKind) => void;
+  /** Argumentos extras para sessões de agente (ex.: --settings da statusline de uso). */
+  extraAgentArgs?: () => string[];
 }
 
 export class PasteNotSafeError extends Error {}
@@ -71,7 +73,7 @@ export class CliAgentAdapter implements AgentAdapter {
       throw new Error(this.info.error!);
     }
     const permission = opts.kind === 'login' ? 'cli-default' : opts.permission ?? 'cli-default';
-    const args = opts.kind === 'login' ? this.cfg.loginArgs : [...this.cfg.agentArgs, ...this.cfg.permissionArgs[permission]];
+    const args = opts.kind === 'login' ? this.cfg.loginArgs : [...this.cfg.agentArgs, ...this.cfg.permissionArgs[permission], ...(this.deps.extraAgentArgs?.() ?? [])];
     const env: NodeJS.ProcessEnv = { ...this.deps.detector.childEnv(), TERM: 'xterm-256color', COLORTERM: 'truecolor' };
     delete env['NO_COLOR'];
     const sessionId = randomUUID();
@@ -80,7 +82,7 @@ export class CliAgentAdapter implements AgentAdapter {
       const pid = this.deps.terminals.start(this.id, { file: cmd.file, args: cmd.args, cwd, env, cols: opts.cols, rows: opts.rows });
       this.update({
         kind: opts.kind, permission, status: 'running', stopping: false, sessionId, pid, cwd: this.deps.detector.shortenHome(cwd),
-        command: [this.cfg.tool, ...args].join(' '), startedAt: new Date().toISOString(), endedAt: null, exitCode: null, signal: null, error: null,
+        command: [this.cfg.tool, ...args.filter((a, i) => args[i - 1] !== '--settings')].join(' '), startedAt: new Date().toISOString(), endedAt: null, exitCode: null, signal: null, error: null,
       });
       this.deps.onSessionCreated?.(sessionId, this.id, opts.kind);
     } catch (e) {

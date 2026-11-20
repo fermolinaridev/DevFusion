@@ -13,6 +13,8 @@ export interface FakeResponse {
   create?: Record<string, FakeToolSpec>;
   /** Modo interativo (para PTY): eco de linhas, comandos "flood", "env", "exit". */
   interactive?: { banner?: string; ignoreSigint?: boolean; ignoreSigterm?: boolean; noBracketedPaste?: boolean; mouseTracking?: boolean };
+  /** Servidor JSON-RPC por stdio (simula o App Server): resposta por método e log dos métodos recebidos. */
+  jsonrpc?: { results: Record<string, unknown>; errors?: Record<string, string>; logFile?: string; silent?: boolean };
 }
 export type FakeToolSpec = Record<string, FakeResponse> & { '*'?: FakeResponse };
 
@@ -59,8 +61,12 @@ const fs = require('fs'), path = require('path');
 const specsDir = path.dirname(__filename);
 const toolDir = path.dirname(specsDir);
 const spec = JSON.parse(fs.readFileSync(__filename.replace(/\\.cjs$/, '.json'), 'utf8'));
-const key = process.argv.slice(2).join(' ');
-const r = spec[key] || spec['*'] || { stderr: 'unknown command: ' + key, exitCode: 2 };
+const argv = process.argv.slice(2);
+const key = argv.join(' ');
+// O DevFusion acrescenta "--settings <json>" (statusline de uso) às sessões do Claude.
+const si = argv.indexOf('--settings');
+const keyNoSettings = si >= 0 ? argv.filter((_, i) => i !== si && i !== si + 1).join(' ') : key;
+const r = spec[key] || spec[keyNoSettings] || spec['*'] || { stderr: 'unknown command: ' + key, exitCode: 2 };
 function create(name, s) {
   fs.writeFileSync(path.join(specsDir, name + '.json'), JSON.stringify(s));
   const js = path.join(specsDir, name + '.cjs');
@@ -73,7 +79,24 @@ function create(name, s) {
     fs.chmodSync(l, 0o755);
   }
 }
-if (r.interactive) {
+if (r.jsonrpc) {
+  const rpc = r.jsonrpc;
+  let jb = '';
+  process.stdin.setEncoding('utf8');
+  process.stdin.on('data', (d) => {
+    jb += d;
+    let i;
+    while ((i = jb.indexOf('\\n')) >= 0) {
+      const line = jb.slice(0, i); jb = jb.slice(i + 1);
+      let m; try { m = JSON.parse(line); } catch { continue; }
+      if (rpc.logFile) fs.appendFileSync(rpc.logFile, m.method + '\\n');
+      if (m.id === undefined || rpc.silent) continue;
+      if (rpc.errors && rpc.errors[m.method]) process.stdout.write(JSON.stringify({ id: m.id, error: { code: -1, message: rpc.errors[m.method] } }) + '\\n');
+      else process.stdout.write(JSON.stringify({ id: m.id, result: rpc.results[m.method] !== undefined ? rpc.results[m.method] : {} }) + '\\n');
+    }
+  });
+  process.stdin.on('end', () => process.exit(0));
+} else if (r.interactive) {
   const it = r.interactive;
   process.stdout.write((it.banner || 'fake pronto') + '\\r\\n> ');
   process.on('SIGINT', () => { process.stdout.write('[SIGINT]\\r\\n> '); if (!it.ignoreSigint) process.exit(130); });
@@ -84,6 +107,7 @@ if (r.interactive) {
     if (line === 'exit') process.exit(0);
       else if (line === 'fail') process.exit(3);
       else if (line === 'flood') { let out = ''; for (let n = 0; n < 20000; n++) out += 'linha ' + n + ' ' + 'x'.repeat(60) + '\\r\\n'; process.stdout.write(out); }
+      else if (line === 'args') process.stdout.write('ARGS=' + JSON.stringify(process.argv.slice(2)) + '\\r\\n');
       else if (line === 'env') process.stdout.write('cwd=' + process.cwd() + ' keys=' + Object.keys(process.env).filter((k) => /KEY|TOKEN|ANTHROPIC|OPENAI|CLAUDE_CODE/.test(k)).join(',') + ' term=' + process.env.TERM + '\\r\\n');
       else process.stdout.write('eco: ' + line + '\\r\\n');
       process.stdout.write('> ');

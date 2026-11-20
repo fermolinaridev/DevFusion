@@ -3,7 +3,7 @@ import type { AppInfo } from '@shared/ipcContracts';
 import { DEFAULT_SETTINGS, type Settings } from '@shared/settings';
 import { unwrap } from '../lib/ipc';
 
-export type NavView = 'explorer' | 'agents' | 'tasks' | 'git' | 'sessions' | 'settings';
+export type NavView = 'explorer' | 'agents' | 'tasks' | 'usage' | 'git' | 'sessions' | 'settings';
 
 interface AppState {
   status: 'loading' | 'ready' | 'error';

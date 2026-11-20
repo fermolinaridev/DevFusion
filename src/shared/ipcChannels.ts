@@ -30,6 +30,8 @@ export const IPC = {
   tasksPreview: 'tasks:preview',
   tasksSend: 'tasks:send',
   tasksDecide: 'tasks:decide',
+  usageGet: 'usage:get',
+  usageRefresh: 'usage:refresh',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -44,5 +46,6 @@ export const IPC_EVENTS = {
   chatMessage: 'event:chat-message',
   taskUpdated: 'event:task-updated',
   workspaceChanged: 'event:workspace-changed',
+  usage: 'event:usage',
 } as const;
 export type IpcEvent = (typeof IPC_EVENTS)[keyof typeof IPC_EVENTS];

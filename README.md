@@ -16,10 +16,11 @@ Aplicativo desktop local para utilizar Claude Code e Codex em uma única interfa
 - [Fase 2 — System Doctor e onboarding](docs/11-FASE2-SYSTEM-DOCTOR.md)
 - [Fase 3 — dois agentes na mesma tela](docs/12-FASE3-AGENTES.md)
 - [Fase 4 — comunicação, revisão e MVP v0.1](docs/13-FASE4-ORQUESTRACAO.md)
+- [Painel de uso dos planos](docs/14-USO-DOS-PLANOS.md)
 - [Prompt de implementação](PROMPT.md)
 - [Instruções dos agentes](AGENTS.md) e [CLAUDE.md](CLAUDE.md)
 
-Estado atual: **MVP v0.1.0** (Fases 0–4) validado no macOS com Claude Pro e ChatGPT Plus: System Doctor e instalação assistida, login oficial e dois terminais integrados, workspace, chat compartilhado com encaminhamento **manual** (o texto é colado no terminal e você confirma com Enter), modo desenvolvedor/revisor com diff do Git e aprovação humana, presets de permissão oficiais, Parar tudo e histórico local. Windows e Linux ainda não foram testados. Próximas fases: Git Worktrees (5), interface avançada (6), estabilidade (7) e distribuição (8). A POC da Fase 0 está em `poc/`.
+Estado atual: **MVP v0.1.0** (Fases 0–4) validado no macOS com Claude Pro e ChatGPT Plus: System Doctor e instalação assistida, login oficial e dois terminais integrados, workspace, chat compartilhado com encaminhamento **manual** (o texto é colado no terminal e você confirma com Enter), modo desenvolvedor/revisor com diff do Git e aprovação humana, presets de permissão oficiais, Parar tudo, histórico local e painel de uso dos planos (5 horas e semanal) a partir das fontes oficiais das CLIs. Windows e Linux ainda não foram testados. Próximas fases: Git Worktrees (5), interface avançada (6), estabilidade (7) e distribuição (8). A POC da Fase 0 está em `poc/`.
 
 ## Desenvolvimento
 Requisitos: Node.js ≥ 22.13 e npm.

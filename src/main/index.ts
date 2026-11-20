@@ -13,6 +13,9 @@ import { LoopGuard } from './orchestrator/LoopGuard';
 import { BusError, MessageBus } from './orchestrator/MessageBus';
 import { TaskError, TaskScheduler } from './orchestrator/TaskScheduler';
 import { GitManager } from './workspace/GitManager';
+import { ClaudeStatuslineBridge } from './usage/ClaudeStatuslineBridge';
+import { readCodexUsage } from './usage/CodexUsageReader';
+import { UsageService } from './usage/UsageService';
 import { migrate, openDatabase, sqliteVersion, type Db } from './database/Database';
 import { AuditLogRepository } from './database/repositories/AuditLogRepository';
 import { DependencyRepository } from './database/repositories/DependencyRepository';
@@ -44,6 +47,7 @@ if (!app.requestSingleInstanceLock()) {
   let mainWindow: BrowserWindow | null = null;
   let db: Db | null = null;
   let agents: AgentService | null = null;
+  let usage: UsageService | null = null;
   let quitting = false;
 
   const send = (event: IpcEvent, payload: unknown) => {
@@ -99,7 +103,15 @@ if (!app.requestSingleInstanceLock()) {
       onState: (state) => send(IPC_EVENTS.installerState, state),
     });
 
+    // Uso dos planos (decisão do usuário): Codex por leitura no App Server; Claude pela statusline oficial.
+    const claudeUsage = new ClaudeStatuslineBridge(join(userData, 'usage'), () => {
+      const node = detector.locate('node').found?.path;
+      if (node) return { executable: node, runAsNodeEnv: false };
+      // Sem Node externo, o próprio Electron roda o script (POSIX). No Windows, sem Node, não há statusline.
+      return process.platform === 'win32' ? null : { executable: process.execPath, runAsNodeEnv: true };
+    });
     const agentService = new AgentService({
+      extraAgentArgs: { claude: () => claudeUsage.settingsArgs() },
       detector,
       ptyFactory: nodePty,
       configuredPaths: () => { const p = settings.getAll().cliPaths; return { claude: p.claude, codex: p.codex }; },
@@ -120,6 +132,12 @@ if (!app.requestSingleInstanceLock()) {
       },
     });
     agents = agentService;
+    const usageService = new UsageService({
+      readCodex: () => readCodexUsage({ codexPath: () => detector.locate('codex', settings.getAll().cliPaths.codex).found?.path ?? null, env: () => detector.childEnv() }),
+      claude: claudeUsage,
+      emit: (report) => send(IPC_EVENTS.usage, report),
+    });
+    usage = usageService;
 
     const gitPath = () => detector.locate('git', settings.getAll().cliPaths.git).found?.path ?? null;
     const guard = new LoopGuard();
@@ -226,11 +244,15 @@ if (!app.requestSingleInstanceLock()) {
       [IPC.tasksPreview]: ({ taskId, action, notes }) => expectedAsync(() => tasks.preview(taskId, action, notes)),
       [IPC.tasksSend]: ({ taskId, action, content }) => expectedAsync(() => tasks.send(taskId, action, content)),
       [IPC.tasksDecide]: ({ taskId, decision, note }) => expected(() => tasks.decide(taskId, decision, note)),
+      [IPC.usageGet]: () => usageService.report(),
+      [IPC.usageRefresh]: () => usageService.refresh(),
     };
     registerIpc(handlers, () => mainWindow, log);
 
     mainWindow = createMainWindow();
     mainWindow.on('closed', () => { mainWindow = null; });
+
+    usageService.start();
 
     // System Doctor em toda inicialização, sem bloquear a janela.
     void doctor.run().then((r) => log.info('Diagnóstico concluído', { mode: r.summary.mode, ready: r.summary.readyAgents }));
@@ -247,7 +269,7 @@ if (!app.requestSingleInstanceLock()) {
     quitting = true;
     void agents.stopAll().finally(() => app.quit());
   });
-  app.on('will-quit', () => { try { db?.close(); } catch { /* já fechado */ } });
+  app.on('will-quit', () => { usage?.stop(); try { db?.close(); } catch { /* já fechado */ } });
 }
 
 /** Confirmação final da instalação em diálogo nativo do main (não pode ser forjada pelo renderer). */

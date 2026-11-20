@@ -13,6 +13,7 @@ import {
   type ChatMessage, type ChatTarget, type OutboundPreview, type PermissionPreset, type Task, type TaskDecision, type TaskOutbound,
 } from './orchestration';
 import { SETTINGS_SCHEMA, isSettingKey, type Settings } from './settings';
+import type { UsageReport } from './usage';
 
 /** Envelope de resposta: erros viajam como dados, sem stack nem detalhes internos. */
 export type IpcErrorCode = 'INVALID_ARGUMENT' | 'FORBIDDEN_SENDER' | 'INTERNAL';
@@ -71,6 +72,8 @@ export const IPC_ARG_SCHEMAS = {
   [IPC.tasksPreview]: TaskPreviewArgsSchema,
   [IPC.tasksSend]: TaskSendArgsSchema,
   [IPC.tasksDecide]: TaskDecideArgsSchema,
+  [IPC.usageGet]: z.undefined(),
+  [IPC.usageRefresh]: z.undefined(),
 } as const;
 
 /** Resultado de ações que podem falhar por motivo esperado (mensagem para o usuário). */
@@ -107,4 +110,6 @@ export interface IpcHandlers {
   [IPC.tasksPreview]: (arg: { taskId: string; action: TaskOutbound; notes?: string }) => Promise<ActionResult<OutboundPreview>>;
   [IPC.tasksSend]: (arg: { taskId: string; action: TaskOutbound; content: string }) => Promise<ActionResult<Task>>;
   [IPC.tasksDecide]: (arg: { taskId: string; decision: TaskDecision; note?: string }) => ActionResult<Task>;
+  [IPC.usageGet]: () => UsageReport;
+  [IPC.usageRefresh]: () => Promise<UsageReport>;
 }

@@ -2,6 +2,7 @@ import { useAppStore } from '../../stores/appStore';
 import { SettingsView } from '../settings/SettingsView';
 import { DoctorPanel } from '../system-doctor/DoctorPanel';
 import { TasksView } from '../tasks/TasksView';
+import { UsageView } from '../usage/UsageView';
 import { NotYetAvailable } from './NotYetAvailable';
 
 export function SidePanel() {
@@ -16,6 +17,7 @@ export function SidePanel() {
         </div>
       )}
       {view === 'tasks' && <TasksView />}
+      {view === 'usage' && <UsageView />}
       {view === 'git' && <NotYetAvailable title="Git" phase={5}>Branches, worktrees, diffs e conflitos.</NotYetAvailable>}
       {view === 'sessions' && <NotYetAvailable title="Sessões" phase={6}>Histórico pesquisável, exportação e exclusão.</NotYetAvailable>}
       {view === 'settings' && <SettingsView />}

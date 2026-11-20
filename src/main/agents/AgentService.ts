@@ -8,7 +8,7 @@ import { CliAgentAdapter, type CliAgentDeps } from './CliAgentAdapter';
 import { CLAUDE_CONFIG } from './ClaudeCodeAdapter';
 import { CODEX_CONFIG } from './CodexAdapter';
 
-export interface AgentServiceDeps extends Omit<CliAgentDeps, 'terminals' | 'configuredPath' | 'onChange'> {
+export interface AgentServiceDeps extends Omit<CliAgentDeps, 'terminals' | 'configuredPath' | 'onChange' | 'extraAgentArgs'> {
   ptyFactory: PtyFactory;
   terminalOptions?: TerminalOptions;
   configuredPaths: () => Record<AgentId, string | null>;
@@ -16,6 +16,7 @@ export interface AgentServiceDeps extends Omit<CliAgentDeps, 'terminals' | 'conf
   revalidate: (checks: CheckId[]) => Promise<unknown>;
   emitState: (info: AgentSessionInfo) => void;
   emitData: (agent: AgentId, data: string) => void;
+  extraAgentArgs?: Partial<Record<AgentId, () => string[]>>;
   /** Diagnóstico: chamado quando um processo de agente termina, com o fim da tela. */
   onExitDiagnostics?: (d: { agent: AgentId; kind: SessionKind; exitCode: number; signal: number | null; durationMs: number | null; stoppedByUser: boolean; screenTail: string }) => void;
 }
@@ -55,6 +56,7 @@ export class AgentService {
       ...deps,
       terminals: this.terminals,
       configuredPath: () => deps.configuredPaths()[cfg.id],
+      extraAgentArgs: deps.extraAgentArgs?.[cfg.id],
       onChange: deps.emitState,
       onSessionEnded: (id, status, kind) => {
         deps.onSessionEnded?.(id, status, kind);

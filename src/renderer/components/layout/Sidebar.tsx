@@ -4,6 +4,7 @@ const ITEMS: Array<{ id: NavView; label: string; glyph: string }> = [
   { id: 'explorer', label: 'Explorer', glyph: '▤' },
   { id: 'agents', label: 'System Doctor', glyph: '◎' },
   { id: 'tasks', label: 'Tarefas', glyph: '☰' },
+  { id: 'usage', label: 'Uso dos planos', glyph: '◔' },
   { id: 'git', label: 'Git', glyph: '⑂' },
   { id: 'sessions', label: 'Sessões', glyph: '◷' },
   { id: 'settings', label: 'Configurações', glyph: '⚙' },
