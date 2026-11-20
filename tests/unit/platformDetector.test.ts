@@ -31,6 +31,16 @@ describe.skipIf(process.platform === 'win32')('PlatformDetector', () => {
     expect(env['HOME']).toBe('/h');
   });
 
+  it('repassa servidor gráfico e D-Bus no Linux (login pelo navegador e chaveiro), sem segredos', () => {
+    const d = new PlatformDetector({ platform: 'linux', home: '/home/u', env: {
+      PATH: '/usr/bin', HOME: '/home/u', DISPLAY: ':99', XAUTHORITY: '/home/u/.Xauthority', WAYLAND_DISPLAY: 'wayland-0',
+      XDG_RUNTIME_DIR: '/run/user/1000', DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus', GITHUB_TOKEN: 'x',
+    } });
+    const env = d.childEnv();
+    expect(env).toMatchObject({ DISPLAY: ':99', XAUTHORITY: '/home/u/.Xauthority', WAYLAND_DISPLAY: 'wayland-0', XDG_RUNTIME_DIR: '/run/user/1000', DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus' });
+    expect(env['GITHUB_TOKEN']).toBeUndefined();
+  });
+
   it('inclui locais oficiais conhecidos quando o app abre com PATH mínimo', () => {
     const d = new PlatformDetector({ platform: 'darwin', env: { PATH: '/usr/bin:/bin' }, home: '/Users/u' });
     expect(d.searchDirs()).toEqual(expect.arrayContaining(['/Users/u/.local/bin', '/opt/homebrew/bin', '/usr/local/bin']));

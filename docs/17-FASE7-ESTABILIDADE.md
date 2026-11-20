@@ -61,11 +61,21 @@ Riscos aceitos e documentados:
 | S4 | ✅ | E2E: banco corrompido → mensagem, arquivo intacto, nada movido sem escolha; unitário da quarentena (renomeia com -wal/-shm); `uncaughtException`/`unhandledRejection` registrados |
 | S5 | ✅ | Unitário: log sanitizado e rotação (3 arquivos); E2E: diagnóstico exportado sem e-mail nem caminho da home |
 | S6 | ✅ | `npm run test:coverage`: 85,06% instruções, 71,58% ramos, 83,16% funções, 90,26% linhas (main + shared; ponto de entrada e config do Electron cobertos pelos E2E). `npm run test:real`: 3 testes com as CLIs reais, sem consumir cota |
-| S7 | ⏳ | Workflow `.github/workflows/ci.yml` (Windows + Linux) pronto; resultado após o push |
+| S7 | ⏳ | **Windows verde no CI** (unitários, build e E2E). Linux: unitários e build verdes; E2E corrigido (ver abaixo), aguardando a próxima execução |
 | S8 | ✅ | 0 alertas |
 
-Totais locais: **117 testes unitários** e **39 E2E**.
+Totais locais: **118 testes unitários** e **39 E2E**.
+
+### Falhas encontradas pelo CI e corrigidas
+| Plataforma | Falha | Causa | Correção |
+|---|---|---|---|
+| Windows | `EBUSY` ao pôr o banco em quarentena | `openDatabase` deixava o arquivo aberto quando um `PRAGMA` falhava | fecha o banco no erro |
+| Windows | Banco corrompido perdia o `-wal` | o SQLite apaga o WAL ao fechar um banco que abriu | cabeçalho `SQLite format 3` conferido **antes** de abrir |
+| Windows | Explorer recusava arquivos válidos ("Fora da pasta") | nomes curtos 8.3 (`RUNNER~1`) no `realpathSync` em JS | `realpathSync.native` |
+| Linux | Electron não abria nos E2E (`Missing X server or $DISPLAY`) | o ambiente mínimo do teste não repassava `DISPLAY` ao app | `DISPLAY`/`XAUTHORITY`/`WAYLAND_DISPLAY`/`XDG_RUNTIME_DIR`/`DBUS_SESSION_BUS_ADDRESS` repassados |
+| Linux (app real) | Mesma lista curta no ambiente das CLIs: login pelo navegador (`xdg-open`) e chaveiro do sistema (D-Bus) não funcionariam | allowlist sem variáveis gráficas | variáveis acima adicionadas à allowlist (não são segredos); teste unitário de regressão |
 
 ## Limitações
-- Windows/Linux: dependem do primeiro resultado do CI (os testes com CLIs falsas por PTY ainda são pulados no Windows).
+- Windows validado só por CI (sem teste manual em máquina real); os testes com CLIs falsas por PTY ainda são pulados no Windows.
+- Linux: E2E depende da próxima execução do CI; sem teste manual em desktop real.
 - Recuperação após queda do **main**: agentes são encerrados (não ficam órfãos), mas a sessão não é retomada automaticamente.

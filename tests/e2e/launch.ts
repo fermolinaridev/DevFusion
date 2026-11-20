@@ -23,7 +23,9 @@ export async function launch(userDataDir: string, opts: LaunchOptions): Promise<
     PATH: process.env['PATH'] ?? '',
   };
   if (opts.minFreeDiskBytes !== undefined) env['DEVFUSION_MIN_FREE_DISK_BYTES'] = String(opts.minFreeDiskBytes);
-  for (const k of ['HOME', 'USER', 'TMPDIR', 'LANG', 'SystemRoot', 'APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'TEMP', 'TMP', 'ComSpec', 'PATHEXT']) {
+  for (const k of ['HOME', 'USER', 'TMPDIR', 'LANG', 'SystemRoot', 'APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'TEMP', 'TMP', 'ComSpec', 'PATHEXT',
+    // Linux: o Electron precisa do servidor gráfico (xvfb no CI) e do barramento de sessão.
+    'DISPLAY', 'XAUTHORITY', 'WAYLAND_DISPLAY', 'XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS']) {
     const v = process.env[k]; if (v) env[k] = v;
   }
   const app = await electron.launch({ args: [APP_ROOT], env });

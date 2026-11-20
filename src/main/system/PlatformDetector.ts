@@ -24,6 +24,8 @@ const ENV_ALLOWLIST = [
   'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'TMPDIR',
   'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SystemRoot', 'SYSTEMROOT', 'SystemDrive', 'ComSpec', 'COMSPEC',
   'PATHEXT', 'TEMP', 'TMP', 'HOMEDRIVE', 'HOMEPATH', 'ProgramFiles', 'ProgramFiles(x86)', 'ProgramData', 'WINDIR',
+  // Linux: abrir o navegador no login (xdg-open) e o chaveiro do sistema (Secret Service via D-Bus).
+  'DISPLAY', 'XAUTHORITY', 'WAYLAND_DISPLAY', 'XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS',
 ];
 
 export class PlatformDetector {
