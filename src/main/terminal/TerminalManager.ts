@@ -102,6 +102,17 @@ export class TerminalManager {
 
   isPaused(key: string): boolean { return this.sessions.get(key)?.paused ?? false; }
 
+  /**
+   * O renderer recarregou (ex.: caiu): confirmações pendentes nunca chegarão.
+   * Zera a contagem e retoma PTYs pausados para não travar as CLIs.
+   */
+  resetFlowControl(): void {
+    for (const s of this.sessions.values()) {
+      s.unacked = 0;
+      if (s.paused && s.alive) { s.paused = false; s.pty.resume(); }
+    }
+  }
+
   /** Estado do protocolo do terminal: o programa aceita colagem delimitada? */
   bracketedPaste(key: string): boolean { return this.sessions.get(key)?.bracketedPaste ?? false; }
 

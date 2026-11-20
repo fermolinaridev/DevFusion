@@ -98,7 +98,8 @@ if (r.jsonrpc) {
   process.stdin.on('end', () => process.exit(0));
 } else if (r.interactive) {
   const it = r.interactive;
-  process.stdout.write((it.banner || 'fake pronto') + '\\r\\n> ');
+  // O banner/prompt só é impresso depois que a leitura está configurada (sem corrida com quem digita).
+  const banner = () => process.stdout.write((it.banner || 'fake pronto') + '\\r\\n> ');
   process.on('SIGINT', () => { process.stdout.write('[SIGINT]\\r\\n> '); if (!it.ignoreSigint) process.exit(130); });
   process.on('SIGTERM', () => { if (!it.ignoreSigterm) process.exit(143); });
   let buf = '';
@@ -132,7 +133,9 @@ if (r.jsonrpc) {
         buf += c; process.stdout.write(c);
       }
     });
+    banner();
   } else {
+    banner();
     process.stdin.on('data', (d) => {
       buf += d;
       let i;

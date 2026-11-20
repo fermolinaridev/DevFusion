@@ -19,10 +19,23 @@ Aplicativo desktop local para utilizar Claude Code e Codex em uma única interfa
 - [Painel de uso dos planos](docs/14-USO-DOS-PLANOS.md)
 - [Fase 5 — Git Worktrees e integração segura](docs/15-FASE5-GIT.md)
 - [Fase 6 — interface avançada](docs/16-FASE6-UI.md)
+- [Fase 7 — estabilidade e beta](docs/17-FASE7-ESTABILIDADE.md)
+- [Changelog](CHANGELOG.md)
 - [Prompt de implementação](PROMPT.md)
 - [Instruções dos agentes](AGENTS.md) e [CLAUDE.md](CLAUDE.md)
 
-Estado atual: **MVP v0.1.0** (Fases 0–4) validado no macOS com Claude Pro e ChatGPT Plus: System Doctor e instalação assistida, login oficial e dois terminais integrados, workspace, chat compartilhado com encaminhamento **manual** (o texto é colado no terminal e você confirma com Enter), modo desenvolvedor/revisor com diff do Git e aprovação humana, presets de permissão oficiais, Parar tudo, histórico local e painel de uso dos planos (5 horas e semanal) a partir das fontes oficiais das CLIs. Windows e Linux ainda não foram testados. Fase 5 concluída: worktrees por agente/tarefa, Explorer com status Git, diff, conflitos previstos, integração e desfazer com confirmação. Fase 6 concluída: editor Monaco, Dashboard, histórico pesquisável com exportação/exclusão/retenção, modos Debate/Debug, atalhos, notificações e personalização. Próximas fases: estabilidade (7) e distribuição (8). A POC da Fase 0 está em `poc/`.
+Estado atual: **beta 0.2.0-beta.1** (Fases 0–7), validada no macOS com Claude Pro e ChatGPT Plus. Windows e Linux são verificados pelo CI (GitHub Actions); veja o resultado na aba Actions do repositório.
+
+O que já funciona:
+- **System Doctor** em toda abertura, onboarding e instalação assistida com confirmação.
+- **Claude Code e Codex lado a lado** em terminais integrados, com login oficial dentro do app, permissões oficiais (padrão ou somente leitura) e Parar tudo.
+- **Chat compartilhado com encaminhamento manual**: o texto é colado no terminal e você confirma com Enter; modos Debate e Debug.
+- **Desenvolvedor/revisor** com diff do Git, aprovação humana e limite de rodadas.
+- **Git Worktrees**: um branch por agente/tarefa, conflitos previstos, integração e desfazer com confirmação.
+- **Editor Monaco**, Explorer, Dashboard, histórico pesquisável (exportar/apagar/retenção) e **uso dos planos** (5 horas e semanal) pelas fontes oficiais.
+- Logs sanitizados, exportação de diagnóstico e recuperação de falhas.
+
+Próxima fase: distribuição (Fase 8 — instaladores). A POC da Fase 0 está em `poc/`.
 
 ## Desenvolvimento
 Requisitos: Node.js ≥ 22.13 e npm.
@@ -30,5 +43,7 @@ Requisitos: Node.js ≥ 22.13 e npm.
 ```bash
 npm install
 npm run dev        # abre o app em modo desenvolvimento
-npm run check      # typecheck + testes unitários + build + testes E2E
+npm run check          # typecheck + testes unitários + build + testes E2E
+npm run test:coverage  # cobertura dos testes unitários
+npm run test:real      # opcional: usa as CLIs e contas reais (não envia prompts)
 ``` Windows é a prioridade inicial; macOS e Linux serão homologados separadamente. A automação via assinaturas deve ser validada antes de investir em funcionalidades avançadas. Não extrair credenciais, contornar limites nem presumir permissão de automação. Se não houver integração suportada, manter os terminais oficiais e transferência manual de mensagens.

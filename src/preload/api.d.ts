@@ -107,6 +107,10 @@ export interface DevFusionApi {
   dashboard: {
     get(): Promise<IpcResult<DashboardData>>;
   };
+  diagnostics: {
+    exportToFile(): Promise<IpcResult<ActionResult<string | null>>>;
+    openLogsFolder(): Promise<IpcResult<boolean>>;
+  };
 }
 
 declare global {

@@ -29,8 +29,11 @@ describe('FileEditor', () => {
     writeFileSync(join(root, 'big.txt'), 'x'.repeat(MAX_EDIT_BYTES + 1));
     await expect(readTextFile(root, 'big.txt')).rejects.toThrow(/grande demais/);
     await expect(readTextFile(root, '')).rejects.toThrow(/Não é um arquivo/);
-    writeFileSync(join(base, 'fora.txt'), 'segredo'); symlinkSync(join(base, 'fora.txt'), join(root, 'link.txt'));
-    await expect(readTextFile(root, 'link.txt')).rejects.toThrow(/Fora da pasta/);
+    writeFileSync(join(base, 'fora.txt'), 'segredo');
+    if (process.platform !== 'win32') { // symlink no Windows exige privilégio de administrador
+      symlinkSync(join(base, 'fora.txt'), join(root, 'link.txt'));
+      await expect(readTextFile(root, 'link.txt')).rejects.toThrow(/Fora da pasta/);
+    }
     await expect(writeTextFile(root, '../fora.txt', 'x', 0, true)).rejects.toThrow(/Fora da pasta/);
     await expect(writeTextFile(root, 'novo.ts', 'x', 0, true)).rejects.toThrow(/não encontrado/);
     expect(readFileSync(join(base, 'fora.txt'), 'utf8')).toBe('segredo');

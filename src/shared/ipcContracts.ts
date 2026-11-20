@@ -101,6 +101,8 @@ export const IPC_ARG_SCHEMAS = {
   [IPC.historyDelete]: z.undefined(),
   [IPC.dashboardGet]: z.undefined(),
   [IPC.workspaceOpenRecent]: OpenRecentArgsSchema,
+  [IPC.diagnosticsExport]: z.undefined(),
+  [IPC.logsOpenFolder]: z.undefined(),
 } as const;
 
 /** Resultado de ações que podem falhar por motivo esperado (mensagem para o usuário). */
@@ -163,4 +165,7 @@ export interface IpcHandlers {
   [IPC.historyDelete]: () => Promise<ActionResult<{ messages: number; sessions: number; tasks: number } | null>>;
   [IPC.dashboardGet]: () => DashboardData;
   [IPC.workspaceOpenRecent]: (arg: { id: string }) => Promise<ActionResult<WorkspaceInfo>>;
+  /** Diálogo nativo de salvar; `value: null` = cancelado. */
+  [IPC.diagnosticsExport]: () => Promise<ActionResult<string | null>>;
+  [IPC.logsOpenFolder]: () => Promise<boolean>;
 }

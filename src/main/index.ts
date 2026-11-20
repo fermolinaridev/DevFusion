@@ -25,14 +25,14 @@ import { existsSync } from 'node:fs';
 import { ClaudeStatuslineBridge } from './usage/ClaudeStatuslineBridge';
 import { readCodexUsage } from './usage/CodexUsageReader';
 import { UsageService } from './usage/UsageService';
-import { migrate, openDatabase, sqliteVersion, type Db } from './database/Database';
+import { migrate, openDatabase, quarantineDatabase, sqliteVersion, type Db } from './database/Database';
 import { AuditLogRepository } from './database/repositories/AuditLogRepository';
 import { DependencyRepository } from './database/repositories/DependencyRepository';
 import { SessionRepository } from './database/repositories/SessionRepository';
 import { SettingsRepository } from './database/repositories/SettingsRepository';
 import { WorkspaceRepository } from './database/repositories/WorkspaceRepository';
 import { registerIpc } from './ipc/registerIpc';
-import { createLogger } from './logging/logger';
+import { configureLogFile, createLogger, tailLog } from './logging/logger';
 import { hardenSession, hardenWindow, rendererEntry, secureWebPreferences } from './security/electronSecurity';
 import { defaultConnectivityTargets, tlsProbe } from './system/checks';
 import { DependencyInstaller } from './system/DependencyInstaller';
@@ -45,6 +45,15 @@ import { WorkspaceError, WorkspaceManager } from './workspace/WorkspaceManager';
 const log = createLogger('main');
 /** Espaço livre mínimo no volume de dados (política do DevFusion). */
 const MIN_FREE_DISK_BYTES = Number(process.env['DEVFUSION_MIN_FREE_DISK_BYTES'] ?? 1024 ** 3);
+
+// Exceções não tratadas no main: registradas (sanitizadas) em vez de derrubar o app em silêncio.
+process.on('uncaughtException', (e) => log.error('Exceção não tratada no processo main', e));
+process.on('unhandledRejection', (e) => log.error('Promessa rejeitada sem tratamento no processo main', e));
+
+// Sandbox em todos os renderers (além do sandbox configurado por janela).
+app.enableSandbox();
+// Variáveis só para testes/desenvolvimento: ignoradas no app empacotado.
+if (app.isPackaged) for (const k of ['DEVFUSION_TOOL_PATH', 'DEVFUSION_CONNECTIVITY_TARGETS', 'DEVFUSION_MIN_FREE_DISK_BYTES', 'DEVFUSION_USER_DATA_DIR']) delete process.env[k];
 
 // Diretório de dados alternativo (usado pelos testes E2E para isolamento).
 const userDataOverride = process.env['DEVFUSION_USER_DATA_DIR'];
@@ -71,9 +80,28 @@ if (!app.requestSingleInstanceLock()) {
     hardenSession(log);
 
     const userData = app.getPath('userData');
+    const logDir = join(userData, 'logs');
+    configureLogFile(logDir);
+    log.info(`DevFusion ${app.getVersion()} iniciando`, { platform: process.platform, arch: process.arch, electron: process.versions.electron });
     const dbFile = join(userData, 'devfusion.sqlite');
-    db = openDatabase(dbFile);
-    const schemaVersion = migrate(db);
+    let schemaVersion: number;
+    try {
+      db = openDatabase(dbFile);
+      schemaVersion = migrate(db);
+    } catch (e) {
+      // Banco ilegível ou mais novo que o app: nunca apagar; oferecer mover para o lado.
+      log.error('Banco de dados ilegível; o arquivo foi preservado', { file: dbFile, error: (e as Error).message });
+      try { db?.close(); } catch { /* ignore */ }
+      db = null;
+      const { response } = await dialog.showMessageBox({
+        type: 'error', title: 'DevFusion', message: 'Não foi possível abrir o banco de dados local.',
+        detail: `${(e as Error).message}\n\nArquivo: ${dbFile}\n\nO arquivo não foi alterado. Você pode sair e investigar, ou mover o arquivo para o lado (renomeado, nada é apagado) e começar com um banco novo.`,
+        buttons: ['Sair', 'Mover e começar do zero'], defaultId: 0, cancelId: 0, noLink: true,
+      });
+      if (response === 1) { const moved = quarantineDatabase(dbFile); log.warn('Banco movido para o lado', { moved }); app.relaunch(); }
+      app.exit(response === 1 ? 0 : 1);
+      return;
+    }
     log.info(`Banco pronto (schema v${schemaVersion})`, { file: dbFile });
     const audit = new AuditLogRepository(db);
     const settings = new SettingsRepository(db, audit, (key) => log.warn('Configuração inválida ignorada; usando padrão', { key }));
@@ -421,6 +449,27 @@ if (!app.requestSingleInstanceLock()) {
         void chatReload();
         return counts;
       }),
+      [IPC.diagnosticsExport]: () => expectedAsync(async () => {
+        const opts: Electron.SaveDialogOptions = { title: 'Exportar diagnóstico', defaultPath: `devfusion-diagnostico-${new Date().toISOString().slice(0, 10)}.json`, filters: [{ name: 'JSON', extensions: ['json'] }] };
+        const r = mainWindow ? await dialog.showSaveDialog(mainWindow, opts) : await dialog.showSaveDialog(opts);
+        if (r.canceled || !r.filePath) return null;
+        const s = settings.getAll();
+        const usageReport = usageService.report();
+        const strip = (u: typeof usageReport.claude) => ({ status: u.status, plan: u.plan, windows: u.windows, updatedAt: u.updatedAt, note: u.note });
+        const diag = {
+          format: 'devfusion-diagnostics/1', createdAt: new Date().toISOString(),
+          app: { version: app.getVersion(), electron: process.versions.electron, node: process.versions.node, chrome: process.versions.chrome, platform: process.platform, arch: process.arch, schemaVersion },
+          settings: { ...s, cliPaths: Object.fromEntries(Object.entries(s.cliPaths).map(([k, v]) => [k, v ? detector.shortenHome(v) : null])), lastWorkspaceId: s.lastWorkspaceId ? '(definido)' : null },
+          doctor: doctor.getReport().results.map((c) => ({ id: c.id, state: c.state, version: c.version, detail: c.detail })),
+          agents: agentService.list().map((a) => ({ agent: a.agent, status: a.status, kind: a.kind, exitCode: a.exitCode, permission: a.permission, location: a.location.kind })),
+          usage: { claude: strip(usageReport.claude), codex: strip(usageReport.codex) },
+          log: tailLog(300),
+        };
+        await writeFile(r.filePath, JSON.stringify(diag, null, 2), 'utf8');
+        audit.record('diagnostics.export', null, {});
+        return detector.shortenHome(r.filePath);
+      }),
+      [IPC.logsOpenFolder]: async () => (await shell.openPath(logDir)) === '',
       [IPC.dashboardGet]: () => {
         const ws = wsRef();
         const tasksByStatus: Record<string, number> = {};
@@ -442,6 +491,20 @@ if (!app.requestSingleInstanceLock()) {
 
     mainWindow = createMainWindow();
     mainWindow.on('closed', () => { mainWindow = null; });
+    // Recuperação: renderer caiu → registra e recarrega; terminais se reanexam pelo buffer.
+    mainWindow.webContents.on('render-process-gone', (_e, details) => {
+      log.error('Renderer encerrado inesperadamente', { reason: details.reason, exitCode: details.exitCode });
+      if (details.reason === 'clean-exit') return;
+      agentService.terminals.resetFlowControl();
+      setTimeout(() => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload(); }, 500);
+    });
+    mainWindow.webContents.on('did-finish-load', () => agentService.terminals.resetFlowControl());
+    mainWindow.on('unresponsive', () => log.warn('Janela sem resposta'));
+    // Erros do renderer vão para o log do main (sanitizados), úteis para relatos da beta.
+    mainWindow.webContents.on('console-message', (event) => {
+      const e = event as unknown as { level?: string | number; message?: string };
+      if (e.level === 'error' || e.level === 3) log.warn('Erro no renderer', String(e.message ?? '').slice(0, 500));
+    });
 
     usageService.start();
 

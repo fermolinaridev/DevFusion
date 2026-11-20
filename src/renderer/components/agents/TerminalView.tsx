@@ -37,6 +37,11 @@ export function TerminalView({ agent, sessionId, themeKey }: { agent: AgentId; s
       convertEol: false,
       // CLIs como o Codex capturam o mouse; ⌥ Option (macOS) / Shift (outros) força a seleção de texto.
       macOptionClickForcesSelection: true,
+      // Links OSC 8 escondem o destino atrás de um texto: confirma mostrando a URL real.
+      linkHandler: {
+        allowNonHttpProtocols: false,
+        activate: (_e, uri) => { if (/^https:\/\//i.test(uri) && window.confirm(`Abrir no navegador?\n\n${uri}`)) window.open(uri); },
+      },
       theme: themeFromCss(),
     });
     const fit = new FitAddon();

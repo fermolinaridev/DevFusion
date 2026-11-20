@@ -43,7 +43,7 @@ Estimativa inicial de referência: 13 semanas de trabalho individual; não é pr
 - [x] Monaco, dashboard, histórico, temas, atalhos, notificações, personalização, modos avançados suportados. Ver [16-FASE6-UI.md](16-FASE6-UI.md) (macOS; Windows pendente).
 
 ## 7 — Estabilidade
-- [ ] Unitários, integração e E2E; falhas, limites, recuperação, processos órfãos, logs sanitizados e revisão de segurança.
+- [x] Unitários, integração e E2E; falhas, limites, recuperação, processos órfãos, logs sanitizados e revisão de segurança. Ver [17-FASE7-ESTABILIDADE.md](17-FASE7-ESTABILIDADE.md) (beta 0.2.0-beta.1; CI Windows + Linux).
 
 ## 8 — Distribuição
 - [ ] Instalador Windows, depois macOS/Linux após testes específicos.

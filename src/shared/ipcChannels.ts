@@ -53,6 +53,8 @@ export const IPC = {
   historyDelete: 'history:delete',
   dashboardGet: 'dashboard:get',
   workspaceOpenRecent: 'workspace:open-recent',
+  diagnosticsExport: 'diagnostics:export',
+  logsOpenFolder: 'logs:open-folder',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

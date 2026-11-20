@@ -1,7 +1,7 @@
 {
   "name": "devfusion",
   "productName": "DevFusion",
-  "version": "0.1.0",
+  "version": "0.2.0-beta.1",
   "private": true,
   "description": "Workspace desktop local para usar Claude Code e Codex lado a lado pelas CLIs oficiais.",
   "license": "MIT",
@@ -17,7 +17,9 @@
     "test": "vitest run",
     "test:e2e": "npm run build && playwright test",
     "check": "npm run typecheck && npm test && npm run test:e2e",
-    "postinstall": "node scripts/fix-node-pty.mjs"
+    "postinstall": "node scripts/fix-node-pty.mjs",
+    "test:coverage": "vitest run --coverage",
+    "test:real": "node scripts/run-real-tests.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "0.11.0",
@@ -38,11 +40,15 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.3.0",
+    "@vitest/coverage-v8": "5.1.1",
     "electron": "45.4.1",
     "electron-vite": "6.0.0",
     "tailwindcss": "4.3.5",
     "typescript": "7.0.2",
     "vite": "8.3.8",
     "vitest": "5.1.1"
+  },
+  "overrides": {
+    "dompurify": "3.4.18"
   }
 }

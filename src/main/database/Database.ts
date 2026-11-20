@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { MIGRATIONS, type Migration } from './migrations';
@@ -49,6 +49,19 @@ export function migrate(db: Db, migrations: readonly Migration[] = MIGRATIONS): 
   const dbMax = (db.prepare('SELECT COALESCE(MAX(version), 0) AS v FROM schema_migrations').get() as { v: number }).v;
   if (dbMax > knownMax) throw new MigrationError(`Banco na versão ${dbMax}, mais nova que este aplicativo (${knownMax}).`);
   return dbMax;
+}
+
+/**
+ * Move o banco ilegível (e arquivos -wal/-shm) para o lado, sem apagar nada.
+ * Retorna o novo caminho do arquivo principal.
+ */
+export function quarantineDatabase(file: string, now = new Date()): string {
+  const stamp = now.toISOString().replace(/[:.]/g, '-');
+  const target = `${file}.ilegivel-${stamp}`;
+  for (const suffix of ['', '-wal', '-shm']) {
+    if (existsSync(file + suffix)) renameSync(file + suffix, target + suffix);
+  }
+  return target;
 }
 
 export function sqliteVersion(db: Db): string {

@@ -36,6 +36,7 @@ export function SettingsView() {
       </fieldset>
       <MaxRoundsField />
       <PersonalizationFields />
+      <DiagnosticsFields />
       <p className="text-xs text-muted">Atalhos de teclado: ⌘/Ctrl+Shift+/ mostra a lista.</p>
     </div>
   );
@@ -123,5 +124,25 @@ function PersonalizationFields() {
       </fieldset>
       {error && <p role="alert" className="text-xs text-warn">{error}</p>}
     </>
+  );
+}
+
+function DiagnosticsFields() {
+  const [msg, setMsg] = useState<string | null>(null);
+  const exportDiag = async () => {
+    const r = await window.devfusion.diagnostics.exportToFile();
+    if (!r.ok) { setMsg(r.error.message); return; }
+    setMsg(r.data.ok ? (r.data.value ? `Diagnóstico salvo em ${r.data.value}` : null) : r.data.reason);
+  };
+  return (
+    <fieldset className="flex flex-col gap-1.5">
+      <legend className="mb-1 text-muted">Diagnóstico (beta)</legend>
+      <p className="text-xs text-muted">Para relatar um problema: o arquivo traz versões, resultado do System Doctor, configurações e as últimas linhas do log, tudo sanitizado (sem e-mails, tokens ou chaves).</p>
+      <div className="flex gap-1.5">
+        <Button onClick={() => void exportDiag()} data-testid="diagnostics-export">Exportar diagnóstico…</Button>
+        <Button variant="ghost" onClick={() => void window.devfusion.diagnostics.openLogsFolder()}>Abrir pasta de logs</Button>
+      </div>
+      {msg && <p role="status" className="text-xs text-muted" data-testid="diagnostics-msg">{msg}</p>}
+    </fieldset>
   );
 }

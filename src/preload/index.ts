@@ -106,6 +106,10 @@ const api: DevFusionApi = Object.freeze({
   dashboard: Object.freeze({
     get: () => ipcRenderer.invoke(IPC.dashboardGet),
   }),
+  diagnostics: Object.freeze({
+    exportToFile: () => ipcRenderer.invoke(IPC.diagnosticsExport),
+    openLogsFolder: () => ipcRenderer.invoke(IPC.logsOpenFolder),
+  }),
 } as DevFusionApi);
 
 contextBridge.exposeInMainWorld('devfusion', api);
