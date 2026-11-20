@@ -1,0 +1,16 @@
+{
+  "name": "devfusion-poc",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Fase 0 \u2014 prova de conceito: CLIs oficiais em PTY e modos estruturados",
+  "type": "module",
+  "scripts": {
+    "poc": "node run-poc.mjs",
+    "postinstall": "node fix-node-pty.mjs",
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "poc:inference": "node run-poc.mjs --with-inference"
+  },
+  "dependencies": {
+    "node-pty": "^1.1.0"
+  }
+}
