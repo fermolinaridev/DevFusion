@@ -38,7 +38,11 @@ test('renderer que cai é recarregado; agentes continuam vivos e terminais reane
   await page.keyboard.press('Enter');
   await expect(page.locator('[data-testid="terminal-claude"] .xterm-rows')).toContainText('eco: antes da queda');
 
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.forcefullyCrashRenderer());
+  // Queda real: SIGKILL no processo do renderer (como o OOM killer). `forcefullyCrashRenderer()`
+  // não serve no Linux: o processo para de responder, mas o main não recebe `render-process-gone`.
+  const rendererPid = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.getOSProcessId());
+  expect(pids).not.toContain(rendererPid);
+  process.kill(rendererPid, 'SIGKILL');
   // O Playwright não acompanha a página depois da queda; inspecionamos a janela recarregada pelo main.
   const inWindow = (js: string) => app.evaluate(({ BrowserWindow }, code) => BrowserWindow.getAllWindows()[0]!.webContents.executeJavaScript(code), js);
   try {

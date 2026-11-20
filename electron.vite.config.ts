@@ -20,7 +20,8 @@ const PROD_CSP = [
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",
-  "frame-ancestors 'none'",
+  // Sem `frame-ancestors`: é ignorada em <meta> (gerava um erro no log a cada abertura);
+  // a janela carrega file:// e navegação/iframes externos já são bloqueados pelo main.
 ].join('; ');
 
 function productionCsp(): Plugin {

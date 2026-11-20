@@ -56,12 +56,12 @@ Riscos aceitos e documentados:
 | # | Status | Evidência |
 |---|---|---|
 | S1 | ✅ | Tabela acima; `tests/unit/ipcFuzz.test.ts`, `tests/e2e/fuzz.spec.ts` |
-| S2 | ✅ | E2E: `forcefullyCrashRenderer()` com dois agentes rodando → janela recarrega, PIDs vivos, terminal reanexado com o conteúdo anterior e digitação funcionando; queda registrada no log |
+| S2 | ✅ | E2E: SIGKILL no processo do renderer com dois agentes rodando → janela recarrega, PIDs vivos, terminal reanexado com o conteúdo anterior e digitação funcionando; queda registrada no log |
 | S3 | ✅ | E2E: SIGKILL no main com Codex falso que ignora SIGINT/SIGTERM → os dois agentes morrem (o fechamento do PTY os encerra) |
 | S4 | ✅ | E2E: banco corrompido → mensagem, arquivo intacto, nada movido sem escolha; unitário da quarentena (renomeia com -wal/-shm); `uncaughtException`/`unhandledRejection` registrados |
 | S5 | ✅ | Unitário: log sanitizado e rotação (3 arquivos); E2E: diagnóstico exportado sem e-mail nem caminho da home |
 | S6 | ✅ | `npm run test:coverage`: 85,06% instruções, 71,58% ramos, 83,16% funções, 90,26% linhas (main + shared; ponto de entrada e config do Electron cobertos pelos E2E). `npm run test:real`: 3 testes com as CLIs reais, sem consumir cota |
-| S7 | ⏳ | **Windows verde no CI** (unitários, build e E2E). Linux: unitários e build verdes; E2E 36/39 na 2ª execução, 3 restantes corrigidos (ver abaixo), aguardando a próxima execução |
+| S7 | ⏳ | **Windows verde no CI** (unitários, build e E2E). Linux: unitários e build verdes; E2E 36/39 → 38/39; o último (queda do renderer) corrigido no teste, aguardando a próxima execução |
 | S8 | ✅ | 0 alertas |
 
 Totais locais: **118 testes unitários** e **39 E2E**.
@@ -75,7 +75,8 @@ Totais locais: **118 testes unitários** e **39 E2E**.
 | Linux | Electron não abria nos E2E (`Missing X server or $DISPLAY`) | o ambiente mínimo do teste não repassava `DISPLAY` ao app | `DISPLAY`/`XAUTHORITY`/`WAYLAND_DISPLAY`/`XDG_RUNTIME_DIR`/`DBUS_SESSION_BUS_ADDRESS` repassados |
 | Linux (app real) | Mesma lista curta no ambiente das CLIs: login pelo navegador (`xdg-open`) e chaveiro do sistema (D-Bus) não funcionariam | allowlist sem variáveis gráficas | variáveis acima adicionadas à allowlist (não são segredos); teste unitário de regressão |
 | Linux | E2E de navegação/popups e fuzz travavam no `app.close()` | os testes abriam links e pastas **de verdade** (`shell.openExternal`/`openPath`); com `DISPLAY` o `xdg-open` iniciava o navegador do runner, que herdava os pipes do Electron | toda abertura externa passa por `system/externalOpen.ts`; nos testes (`DEVFUSION_SUPPRESS_EXTERNAL_OPEN=1`, ignorada no app empacotado) só é registrada no log, e o E2E confere esse registro |
-| Linux | Renderer derrubado não era recarregado | a recuperação ignorava `reason: 'clean-exit'`, e no Linux (zigoto do Chromium) uma queda forçada pode chegar assim | recarrega sempre que a janela continua aberta e o app não está saindo; mais de 3 quedas em 60 s suspendem a recarga automática (evita laço); E2E imprime estado da janela e log se falhar |
+| Linux | Renderer derrubado não era recarregado | (1) a recuperação ignorava `reason: 'clean-exit'`; (2) o diagnóstico do CI mostrou que `forcefullyCrashRenderer()` no Linux só trava a página: o main não recebe `render-process-gone` (log sem queda, `isCrashed() = false`) | (1) recarrega sempre que a janela continua aberta e o app não está saindo, com limite de 3 quedas em 60 s contra laço; (2) o E2E simula uma queda real: SIGKILL no PID do renderer (`getOSProcessId()`), como faria o OOM killer |
+| Todas | Erro no log a cada abertura ("`frame-ancestors` ignorada em `<meta>`") | diretiva sem efeito em CSP por meta tag | removida (a janela carrega `file://`; navegação e iframes externos já são bloqueados pelo main) |
 
 ## Limitações
 - Windows validado só por CI (sem teste manual em máquina real); os testes com CLIs falsas por PTY ainda são pulados no Windows.
