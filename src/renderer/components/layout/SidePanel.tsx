@@ -1,5 +1,6 @@
 import { useAppStore } from '../../stores/appStore';
 import { SettingsView } from '../settings/SettingsView';
+import { DoctorPanel } from '../system-doctor/DoctorPanel';
 import { NotYetAvailable } from './NotYetAvailable';
 
 export function SidePanel() {
@@ -8,9 +9,10 @@ export function SidePanel() {
     <div className="h-full overflow-auto" data-testid={`side-${view}`}>
       {view === 'explorer' && <NotYetAvailable title="Explorer" phase={5}>Árvore de arquivos do workspace selecionado.</NotYetAvailable>}
       {view === 'agents' && (
-        <NotYetAvailable title="Agentes" phase={2}>
-          Detecção de Claude Code e Codex, versões e status de login pelo System Doctor. Validação manual da Fase 0 em docs/09-FASE0-POC.md.
-        </NotYetAvailable>
+        <div className="flex flex-col gap-2 p-3">
+          <h2 className="text-sm font-semibold">System Doctor</h2>
+          <DoctorPanel compact />
+        </div>
       )}
       {view === 'tasks' && <NotYetAvailable title="Tarefas" phase={4}>Fila de tarefas, estados e aprovações.</NotYetAvailable>}
       {view === 'git' && <NotYetAvailable title="Git" phase={5}>Branches, worktrees, diffs e conflitos.</NotYetAvailable>}

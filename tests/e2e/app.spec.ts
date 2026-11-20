@@ -1,27 +1,20 @@
-import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { expect, test } from '@playwright/test';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+import { FakeToolDir } from '../helpers/fakeTools';
+import { APP_VERSION, launch as launchRaw, passOnboarding } from './launch';
 
-// Lança pela raiz do projeto (como `electron .`): o Electron lê package.json → main e versão.
-const APP_ROOT = resolve(__dirname, '../..');
-const APP_VERSION = (JSON.parse(readFileSync(join(APP_ROOT, 'package.json'), 'utf8')) as { version: string }).version;
-
-async function launch(userDataDir: string): Promise<{ app: ElectronApplication; page: Page }> {
-  // Ambiente mínimo: sem credenciais/API keys herdadas do shell de teste.
-  const env: Record<string, string> = { DEVFUSION_USER_DATA_DIR: userDataDir, PATH: process.env['PATH'] ?? '' };
-  for (const k of ['HOME', 'USER', 'TMPDIR', 'LANG', 'SystemRoot', 'APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'TEMP', 'TMP']) {
-    const v = process.env[k]; if (v) env[k] = v;
-  }
-  const app = await electron.launch({ args: [APP_ROOT], env });
-  const page = await app.firstWindow();
-  await page.waitForSelector('[data-testid="status-bar"]');
-  return { app, page };
+let tools: FakeToolDir;
+async function launch(userDataDir: string) {
+  const r = await launchRaw(userDataDir, { toolDir: tools.dir });
+  await passOnboarding(r.page);
+  return r;
 }
 
 let dir: string;
-test.beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'devfusion-e2e-')); });
-test.afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+test.beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'devfusion-e2e-')); tools = new FakeToolDir(); });
+test.afterEach(() => { rmSync(dir, { recursive: true, force: true }); tools.cleanup(); });
 
 test('janela abre com preferências web seguras', async () => {
   const { app } = await launch(dir);
@@ -47,7 +40,7 @@ test('renderer não tem acesso a Node e só vê a API mínima', async () => {
       frozen: Object.isFrozen(api),
     };
   });
-  expect(probe).toEqual({ require: 'undefined', process: 'undefined', ipcRenderer: 'undefined', electron: 'undefined', apiKeys: ['app', 'settings'], appKeys: ['getInfo'], settingsKeys: ['getAll', 'set'], frozen: true });
+  expect(probe).toEqual({ require: 'undefined', process: 'undefined', ipcRenderer: 'undefined', electron: 'undefined', apiKeys: ['app', 'docs', 'doctor', 'installer', 'settings'], appKeys: ['getInfo'], settingsKeys: ['getAll', 'set'], frozen: true });
   await app.close();
 });
 
@@ -92,8 +85,8 @@ test('navegação e popups são bloqueados', async () => {
 test('layout inicial mostra estados reais, sem dados simulados', async () => {
   const { app, page } = await launch(dir);
   await expect(page.getByTestId('workspace-name')).toHaveText('nenhum selecionado');
-  await expect(page.getByTestId('agent-status-claude')).toHaveText('sessão não iniciada');
-  await expect(page.getByTestId('agent-status-codex')).toHaveText('sessão não iniciada');
+  await expect(page.getByTestId('agent-status-claude')).toHaveText('não instalado');
+  await expect(page.getByTestId('agent-status-codex')).toHaveText('não instalado');
   await expect(page.getByTestId('chat-empty')).toHaveText('Nenhuma mensagem.');
   await expect(page.getByRole('button', { name: 'Parar tudo' })).toBeDisabled();
   await expect(page.getByTestId('status-db')).toContainText(`DevFusion ${APP_VERSION} ·`);

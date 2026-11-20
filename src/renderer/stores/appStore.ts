@@ -13,6 +13,8 @@ interface AppState {
   view: NavView;
   load(): Promise<void>;
   setTheme(theme: Settings['theme']): Promise<void>;
+  setSetting<K extends keyof Settings>(key: K, value: Settings[K]): Promise<string | null>;
+  completeOnboarding(): Promise<void>;
   setView(view: NavView): void;
 }
 
@@ -33,6 +35,23 @@ export const useAppStore = create<AppState>((set) => ({
   async setTheme(theme) {
     try {
       const settings = await unwrap(window.devfusion.settings.set('theme', theme));
+      set({ settings, error: null });
+    } catch (e) {
+      set({ error: (e as Error).message });
+    }
+  },
+  async setSetting(key, value) {
+    try {
+      const settings = await unwrap(window.devfusion.settings.set(key, value));
+      set({ settings, error: null });
+      return null;
+    } catch (e) {
+      return (e as Error).message;
+    }
+  },
+  async completeOnboarding() {
+    try {
+      const settings = await unwrap(window.devfusion.settings.set('onboardingCompleted', true));
       set({ settings, error: null });
     } catch (e) {
       set({ error: (e as Error).message });

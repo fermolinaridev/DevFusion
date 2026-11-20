@@ -8,12 +8,20 @@ const silent = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 const trusted = { isTrustedSender: true };
 
 function router(overrides: Partial<IpcHandlers> = {}) {
-  const handlers: IpcHandlers = {
+  const handlers = {
     [IPC.appGetInfo]: () => ({ appVersion: '0', platform: 'darwin', arch: 'arm64', versions: { electron: '1', chrome: '1', node: '1' }, database: { schemaVersion: 1, sqliteVersion: '3' } }),
     [IPC.settingsGetAll]: () => DEFAULT_SETTINGS,
     [IPC.settingsSet]: ({ key, value }) => ({ ...DEFAULT_SETTINGS, [key]: value }),
+    [IPC.doctorGetReport]: () => { throw new Error('não usado'); },
+    [IPC.doctorRun]: () => Promise.reject(new Error('não usado')),
+    [IPC.installerGetMethods]: () => Promise.resolve([]),
+    [IPC.installerGetState]: () => ({ methodId: null, dependency: null, status: 'idle', output: '', exitCode: null, message: null }),
+    [IPC.installerInstall]: () => Promise.reject(new Error('não usado')),
+    [IPC.installerCancel]: () => false,
+    [IPC.installerOpenSource]: () => Promise.resolve(false),
+    [IPC.docsOpen]: () => Promise.resolve(false),
     ...overrides,
-  };
+  } as IpcHandlers;
   return createIpcRouter(handlers, silent);
 }
 

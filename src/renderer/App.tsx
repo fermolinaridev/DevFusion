@@ -6,13 +6,18 @@ import { Header } from './components/layout/Header';
 import { SidePanel } from './components/layout/SidePanel';
 import { Sidebar } from './components/layout/Sidebar';
 import { StatusBar } from './components/layout/StatusBar';
+import { DoctorBanner } from './components/system-doctor/DoctorBanner';
 import { useApplyTheme } from './lib/useTheme';
+import { Onboarding } from './pages/Onboarding';
 import { useAppStore } from './stores/appStore';
+import { useDoctorStore } from './stores/doctorStore';
 
 export function App() {
   const { status, error, settings, load } = useAppStore();
   useApplyTheme(settings.theme);
+  const initDoctor = useDoctorStore((s) => s.init);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => initDoctor(), [initDoctor]);
 
   if (status === 'loading') {
     return <div className="flex h-full items-center justify-center text-muted" role="status">Carregando…</div>;
@@ -27,9 +32,12 @@ export function App() {
     );
   }
 
+  if (!settings.onboardingCompleted) return <Onboarding />;
+
   return (
     <div className="flex h-full flex-col">
       <Header />
+      <DoctorBanner />
       <div className="flex min-h-0 flex-1">
         <Sidebar />
         <Group orientation="horizontal" className="min-w-0 flex-1">

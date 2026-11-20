@@ -12,6 +12,7 @@
   "include": [
     "tests/e2e/**/*",
     "playwright.config.ts",
-    "src/preload/api.d.ts"
+    "src/preload/api.d.ts",
+    "tests/helpers/**/*"
   ]
 }

@@ -13,10 +13,11 @@ Aplicativo desktop local para utilizar Claude Code e Codex em uma única interfa
 - [Segurança, testes e distribuição](docs/08-SEGURANCA.md)
 - [Fase 0 — resultado da prova de conceito](docs/09-FASE0-POC.md)
 - [Fase 1 — fundação Electron](docs/10-FASE1-FUNDACAO.md)
+- [Fase 2 — System Doctor e onboarding](docs/11-FASE2-SYSTEM-DOCTOR.md)
 - [Prompt de implementação](PROMPT.md)
 - [Instruções dos agentes](AGENTS.md) e [CLAUDE.md](CLAUDE.md)
 
-Estado atual: Fase 1 concluída no macOS — base Electron com IPC seguro, SQLite e layout inicial. Os agentes ainda não rodam dentro do app (Fase 3). A POC da Fase 0 está em `poc/`.
+Estado atual: Fase 2 concluída no macOS — base Electron com IPC seguro e SQLite, System Doctor em toda inicialização, onboarding e instalação assistida com consentimento. Os agentes ainda não rodam dentro do app (Fase 3). A POC da Fase 0 está em `poc/`.
 
 ## Desenvolvimento
 Requisitos: Node.js ≥ 22.13 e npm.

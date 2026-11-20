@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+  DoctorRunArgsSchema, InstallPlanArgsSchema, InstallRunArgsSchema, OpenDocArgsSchema,
+  type CheckId, type DoctorReport, type InstallMethod, type InstallState, type InstallableDependency, type DocId,
+} from './doctor';
 import { IPC } from './ipcChannels';
 import { SETTINGS_SCHEMA, isSettingKey, type Settings } from './settings';
 
@@ -32,10 +36,26 @@ export const IPC_ARG_SCHEMAS = {
   [IPC.appGetInfo]: z.undefined(),
   [IPC.settingsGetAll]: z.undefined(),
   [IPC.settingsSet]: settingSetArgs,
+  [IPC.doctorGetReport]: z.undefined(),
+  [IPC.doctorRun]: DoctorRunArgsSchema,
+  [IPC.installerGetMethods]: InstallPlanArgsSchema,
+  [IPC.installerGetState]: z.undefined(),
+  [IPC.installerInstall]: InstallRunArgsSchema,
+  [IPC.installerCancel]: z.undefined(),
+  [IPC.installerOpenSource]: InstallRunArgsSchema,
+  [IPC.docsOpen]: OpenDocArgsSchema,
 } as const;
 
 export interface IpcHandlers {
   [IPC.appGetInfo]: () => AppInfo;
   [IPC.settingsGetAll]: () => Settings;
   [IPC.settingsSet]: (arg: { key: keyof Settings; value: Settings[keyof Settings] }) => Settings;
+  [IPC.doctorGetReport]: () => DoctorReport;
+  [IPC.doctorRun]: (arg: { checks?: CheckId[] } | undefined) => Promise<DoctorReport>;
+  [IPC.installerGetMethods]: (arg: { dependency: InstallableDependency }) => Promise<InstallMethod[]>;
+  [IPC.installerGetState]: () => InstallState;
+  [IPC.installerInstall]: (arg: { methodId: string }) => Promise<InstallState>;
+  [IPC.installerCancel]: () => boolean;
+  [IPC.installerOpenSource]: (arg: { methodId: string }) => Promise<boolean>;
+  [IPC.docsOpen]: (arg: { docId: DocId }) => Promise<boolean>;
 }

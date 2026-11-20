@@ -23,8 +23,8 @@ Estimativa inicial de referência: 13 semanas de trabalho individual; não é pr
 - [x] SQLite, migrações, configurações e layout inicial. Ver [10-FASE1-FUNDACAO.md](10-FASE1-FUNDACAO.md) (validado no macOS; Windows pendente).
 
 ## 2 — System Doctor
-- [ ] Detectar SO, PATH, versões, autenticação, internet, disco e permissões.
-- [ ] Instalação assistida, onboarding, rechecagem e modo degradado.
+- [x] Detectar SO, PATH, versões, autenticação, internet, disco e permissões.
+- [x] Instalação assistida, onboarding, rechecagem e modo degradado. Ver [11-FASE2-SYSTEM-DOCTOR.md](11-FASE2-SYSTEM-DOCTOR.md) (validado no macOS; Windows pendente; login no app na Fase 3).
 
 ## 3 — Agentes
 - [ ] Adapters, node-pty, xterm.js, processos independentes, eventos e cancelamento.
