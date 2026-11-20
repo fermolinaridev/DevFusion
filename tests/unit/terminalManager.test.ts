@@ -66,6 +66,19 @@ describe.skipIf(process.platform === 'win32')('TerminalManager (node-pty real)',
   }, 20_000);
 });
 
+describe.skipIf(process.platform === 'win32')('bracketed paste', () => {
+  it('acompanha ESC[?2004h/l emitido pelo programa', async () => {
+    startFake();
+    await vi.waitFor(() => expect(data).toContain('>'));
+    expect(tm.bracketedPaste('claude')).toBe(true);
+    await tm.stop('claude');
+    data = '';
+    startFake(SPECS.interactiveAgent('claude', { noBracketedPaste: true }));
+    await vi.waitFor(() => expect(data).toContain('>'));
+    expect(tm.bracketedPaste('claude')).toBe(false);
+  });
+});
+
 describe('ptyCommand', () => {
   it('Windows .cmd via cmd.exe com aspas; rejeita metacaracteres; POSIX direto', () => {
     expect(ptyCommand('C:\\npm\\claude.cmd', ['auth', 'login'], 'win32', { ComSpec: 'C:\\cmd.exe' })).toEqual({ file: 'C:\\cmd.exe', args: '/d /s /c ""C:\\npm\\claude.cmd" "auth" "login""' });

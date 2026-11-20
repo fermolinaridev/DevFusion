@@ -123,4 +123,19 @@ export const MIGRATIONS: readonly Migration[] = [
       INSERT OR IGNORE INTO agents (id, provider, config_json) VALUES ('codex', 'codex', '{}');
     `,
   },
+  {
+    version: 3,
+    name: 'chat_and_review',
+    sql: `
+      ALTER TABLE messages ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE;
+      ALTER TABLE messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'message';
+      CREATE INDEX idx_messages_workspace ON messages(workspace_id, created_at);
+
+      ALTER TABLE tasks ADD COLUMN description TEXT NOT NULL DEFAULT '';
+      ALTER TABLE tasks ADD COLUMN reviewer TEXT;
+      ALTER TABLE tasks ADD COLUMN rounds INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE tasks ADD COLUMN max_rounds INTEGER NOT NULL DEFAULT 3;
+      CREATE INDEX idx_tasks_workspace_updated ON tasks(workspace_id, updated_at);
+    `,
+  },
 ];

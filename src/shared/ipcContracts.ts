@@ -8,6 +8,10 @@ import {
   type AgentId, type AgentSessionInfo, type SessionKind, type WorkspaceInfo,
 } from './agents';
 import { IPC } from './ipcChannels';
+import {
+  ChatListArgsSchema, ChatSendArgsSchema, ForwardArgsSchema, TaskCreateArgsSchema, TaskDecideArgsSchema, TaskPreviewArgsSchema, TaskSendArgsSchema,
+  type ChatMessage, type ChatTarget, type OutboundPreview, type PermissionPreset, type Task, type TaskDecision, type TaskOutbound,
+} from './orchestration';
 import { SETTINGS_SCHEMA, isSettingKey, type Settings } from './settings';
 
 /** Envelope de resposta: erros viajam como dados, sem stack nem detalhes internos. */
@@ -59,6 +63,14 @@ export const IPC_ARG_SCHEMAS = {
   [IPC.terminalResize]: TerminalResizeArgsSchema,
   [IPC.terminalAck]: TerminalAckArgsSchema,
   [IPC.terminalReplay]: AgentArgsSchema,
+  [IPC.chatList]: ChatListArgsSchema,
+  [IPC.chatSend]: ChatSendArgsSchema,
+  [IPC.chatForward]: ForwardArgsSchema,
+  [IPC.tasksList]: z.undefined(),
+  [IPC.tasksCreate]: TaskCreateArgsSchema,
+  [IPC.tasksPreview]: TaskPreviewArgsSchema,
+  [IPC.tasksSend]: TaskSendArgsSchema,
+  [IPC.tasksDecide]: TaskDecideArgsSchema,
 } as const;
 
 /** Resultado de ações que podem falhar por motivo esperado (mensagem para o usuário). */
@@ -79,7 +91,7 @@ export interface IpcHandlers {
   [IPC.workspaceGet]: () => Promise<WorkspaceInfo | null>;
   [IPC.workspaceChoose]: () => Promise<ActionResult<WorkspaceInfo | null>>;
   [IPC.agentsList]: () => AgentSessionInfo[];
-  [IPC.agentStart]: (arg: { agent: AgentId; kind: SessionKind; cols: number; rows: number }) => Promise<ActionResult<AgentSessionInfo>>;
+  [IPC.agentStart]: (arg: { agent: AgentId; kind: SessionKind; cols: number; rows: number; permission: PermissionPreset }) => Promise<ActionResult<AgentSessionInfo>>;
   [IPC.agentInterrupt]: (arg: { agent: AgentId }) => Promise<void>;
   [IPC.agentStop]: (arg: { agent: AgentId }) => Promise<AgentSessionInfo>;
   [IPC.agentsStopAll]: () => Promise<AgentSessionInfo[]>;
@@ -87,4 +99,12 @@ export interface IpcHandlers {
   [IPC.terminalResize]: (arg: { agent: AgentId; cols: number; rows: number }) => void;
   [IPC.terminalAck]: (arg: { agent: AgentId; bytes: number }) => void;
   [IPC.terminalReplay]: (arg: { agent: AgentId }) => string;
+  [IPC.chatList]: (arg: { limit: number } | undefined) => ChatMessage[];
+  [IPC.chatSend]: (arg: { to: ChatTarget; content: string }) => Promise<ActionResult<ChatMessage>>;
+  [IPC.chatForward]: (arg: { from: AgentId; to: AgentId; content: string }) => Promise<ActionResult<ChatMessage>>;
+  [IPC.tasksList]: () => Task[];
+  [IPC.tasksCreate]: (arg: { title: string; description: string; criteria: string[]; developer: AgentId; reviewer: AgentId }) => ActionResult<Task>;
+  [IPC.tasksPreview]: (arg: { taskId: string; action: TaskOutbound; notes?: string }) => Promise<ActionResult<OutboundPreview>>;
+  [IPC.tasksSend]: (arg: { taskId: string; action: TaskOutbound; content: string }) => Promise<ActionResult<Task>>;
+  [IPC.tasksDecide]: (arg: { taskId: string; decision: TaskDecision; note?: string }) => ActionResult<Task>;
 }

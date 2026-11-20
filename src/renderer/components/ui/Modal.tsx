@@ -17,12 +17,15 @@ export function Modal({ title, open, onClose, children, footer, testId }: { titl
       data-testid={testId}
       className="m-auto w-[min(720px,92vw)] rounded-lg border border-border bg-surface p-0 text-fg shadow-2xl backdrop:bg-black/50"
     >
-      <div className="flex items-center border-b border-border px-4 py-3">
-        <h2 id="modal-title" className="text-sm font-semibold">{title}</h2>
-        <button type="button" onClick={onClose} aria-label="Fechar" className="ml-auto rounded px-2 text-muted hover:bg-surface-2 hover:text-fg">✕</button>
-      </div>
-      <div className="max-h-[65vh] overflow-auto px-4 py-3">{children}</div>
-      {footer && <div className="flex justify-end gap-2 border-t border-border px-4 py-3">{footer}</div>}
+      {/* Conteúdo só existe enquanto aberto: evita elementos duplicados/ocultos no DOM. */}
+      {open && <>
+        <div className="flex items-center border-b border-border px-4 py-3">
+          <h2 id="modal-title" className="text-sm font-semibold">{title}</h2>
+          <button type="button" onClick={onClose} aria-label="Fechar" className="ml-auto rounded px-2 text-muted hover:bg-surface-2 hover:text-fg">✕</button>
+        </div>
+        <div className="max-h-[65vh] overflow-auto px-4 py-3">{children}</div>
+        {footer && <div className="flex justify-end gap-2 border-t border-border px-4 py-3">{footer}</div>}
+      </>}
     </dialog>
   );
 }

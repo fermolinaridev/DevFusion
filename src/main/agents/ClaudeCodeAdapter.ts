@@ -7,6 +7,8 @@ export const CLAUDE_CONFIG: CliAgentConfig = {
   tool: 'claude',
   agentArgs: [],
   loginArgs: ['auth', 'login'],
+  // `plan`: modo de planejamento (somente leitura) listado em `claude --help`.
+  permissionArgs: { 'cli-default': [], 'read-only': ['--permission-mode', 'plan'] },
   capabilities: {
     interactive: true,
     automatable: false,

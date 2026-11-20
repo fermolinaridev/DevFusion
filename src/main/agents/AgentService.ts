@@ -2,6 +2,7 @@ import { homedir } from 'node:os';
 import type { AgentId, AgentSessionInfo, SessionKind } from '@shared/agents';
 import { AGENT_IDS } from '@shared/agents';
 import type { CheckId } from '@shared/doctor';
+import type { PermissionPreset } from '@shared/orchestration';
 import { TerminalManager, type PtyFactory, type TerminalOptions } from '../terminal/TerminalManager';
 import { CliAgentAdapter, type CliAgentDeps } from './CliAgentAdapter';
 import { CLAUDE_CONFIG } from './ClaudeCodeAdapter';
@@ -65,12 +66,13 @@ export class AgentService {
   }
 
   adapter(agent: AgentId): CliAgentAdapter { return this.adapters[agent]; }
+  isRunning(agent: AgentId): boolean { return this.terminals.has(agent); }
   list(): AgentSessionInfo[] { return AGENT_IDS.map((a) => this.adapters[a].snapshot()); }
 
-  async start(agent: AgentId, kind: SessionKind, cols: number, rows: number): Promise<AgentSessionInfo> {
+  async start(agent: AgentId, kind: SessionKind, cols: number, rows: number, permission: PermissionPreset = 'cli-default'): Promise<AgentSessionInfo> {
     const ws = this.deps.workspacePath();
     if (kind === 'agent' && !ws) throw new Error('Selecione um workspace antes de iniciar o agente.');
-    await this.adapters[agent].startSession(kind === 'agent' ? ws! : ws ?? homedir(), { kind, cols, rows });
+    await this.adapters[agent].startSession(kind === 'agent' ? ws! : ws ?? homedir(), { kind, cols, rows, permission });
     return this.adapters[agent].snapshot();
   }
 

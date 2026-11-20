@@ -37,10 +37,11 @@ const api: DevFusionApi = Object.freeze({
   workspace: Object.freeze({
     get: () => ipcRenderer.invoke(IPC.workspaceGet),
     choose: () => ipcRenderer.invoke(IPC.workspaceChoose),
+    onChanged: (cb: (i: never) => void) => subscribe(IPC_EVENTS.workspaceChanged, cb),
   }),
   agents: Object.freeze({
     list: () => ipcRenderer.invoke(IPC.agentsList),
-    start: (agent: unknown, kind: unknown, cols: unknown, rows: unknown) => ipcRenderer.invoke(IPC.agentStart, { agent, kind, cols, rows }),
+    start: (agent: unknown, kind: unknown, cols: unknown, rows: unknown, permission?: unknown) => ipcRenderer.invoke(IPC.agentStart, { agent, kind, cols, rows, ...(permission === undefined ? {} : { permission }) }),
     interrupt: (agent: unknown) => ipcRenderer.invoke(IPC.agentInterrupt, { agent }),
     stop: (agent: unknown) => ipcRenderer.invoke(IPC.agentStop, { agent }),
     stopAll: () => ipcRenderer.invoke(IPC.agentsStopAll),
@@ -52,6 +53,20 @@ const api: DevFusionApi = Object.freeze({
     ack: (agent: unknown, bytes: unknown) => ipcRenderer.invoke(IPC.terminalAck, { agent, bytes }),
     replay: (agent: unknown) => ipcRenderer.invoke(IPC.terminalReplay, { agent }),
     onData: (cb: (p: never) => void) => subscribe(IPC_EVENTS.terminalData, cb),
+  }),
+  chat: Object.freeze({
+    list: (limit?: unknown) => ipcRenderer.invoke(IPC.chatList, limit === undefined ? undefined : { limit }),
+    send: (to: unknown, content: unknown) => ipcRenderer.invoke(IPC.chatSend, { to, content }),
+    forward: (from: unknown, to: unknown, content: unknown) => ipcRenderer.invoke(IPC.chatForward, { from, to, content }),
+    onMessage: (cb: (m: never) => void) => subscribe(IPC_EVENTS.chatMessage, cb),
+  }),
+  tasks: Object.freeze({
+    list: () => ipcRenderer.invoke(IPC.tasksList),
+    create: (input: unknown) => ipcRenderer.invoke(IPC.tasksCreate, input),
+    preview: (taskId: unknown, action: unknown, notes?: unknown) => ipcRenderer.invoke(IPC.tasksPreview, { taskId, action, ...(notes === undefined ? {} : { notes }) }),
+    send: (taskId: unknown, action: unknown, content: unknown) => ipcRenderer.invoke(IPC.tasksSend, { taskId, action, content }),
+    decide: (taskId: unknown, decision: unknown, note?: unknown) => ipcRenderer.invoke(IPC.tasksDecide, { taskId, decision, ...(note === undefined ? {} : { note }) }),
+    onUpdated: (cb: (t: never) => void) => subscribe(IPC_EVENTS.taskUpdated, cb),
   }),
 } as DevFusionApi);
 

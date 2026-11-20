@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { AgentId, AgentSessionInfo, SessionKind, WorkspaceInfo } from '@shared/agents';
+import type { PermissionPreset } from '@shared/orchestration';
 import { unwrap } from '../lib/ipc';
 
 /** Tamanho atual de cada terminal (preenchido pelo TerminalView após o ajuste). */
@@ -12,6 +13,11 @@ interface AgentState {
   errors: Partial<Record<AgentId, string>>;
   workspaceError: string | null;
   stoppingAll: boolean;
+  /** Há texto selecionado no terminal de cada agente. */
+  hasSelection: Partial<Record<AgentId, boolean>>;
+  permission: Record<AgentId, PermissionPreset>;
+  setHasSelection(agent: AgentId, v: boolean): void;
+  setPermission(agent: AgentId, p: PermissionPreset): void;
   init(): () => void;
   start(agent: AgentId, kind: SessionKind): Promise<void>;
   interrupt(agent: AgentId): Promise<void>;
@@ -26,16 +32,21 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   errors: {},
   workspaceError: null,
   stoppingAll: false,
+  hasSelection: {},
+  permission: { claude: 'cli-default', codex: 'cli-default' },
+  setHasSelection(agent, v) { if (get().hasSelection[agent] !== v) set((s) => ({ hasSelection: { ...s.hasSelection, [agent]: v } })); },
+  setPermission(agent, p) { set((s) => ({ permission: { ...s.permission, [agent]: p } })); },
   init() {
     const off = window.devfusion.agents.onState((info) => set((s) => ({ sessions: { ...s.sessions, [info.agent]: info } })));
+    const offWs = window.devfusion.workspace.onChanged((workspace) => set({ workspace }));
     void unwrap(window.devfusion.agents.list()).then((list) => set({ sessions: Object.fromEntries(list.map((i) => [i.agent, i])) }));
     void unwrap(window.devfusion.workspace.get()).then((workspace) => set({ workspace }));
-    return off;
+    return () => { off(); offWs(); };
   },
   async start(agent, kind) {
     set((s) => ({ errors: { ...s.errors, [agent]: undefined } }));
     const { cols, rows } = terminalSizes[agent];
-    const r = await unwrap(window.devfusion.agents.start(agent, kind, cols, rows));
+    const r = await unwrap(window.devfusion.agents.start(agent, kind, cols, rows, kind === 'agent' ? get().permission[agent] : undefined));
     if (!r.ok) set((s) => ({ errors: { ...s.errors, [agent]: r.reason } }));
   },
   async interrupt(agent) { await unwrap(window.devfusion.agents.interrupt(agent)); },

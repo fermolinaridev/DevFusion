@@ -12,7 +12,7 @@ export interface FakeResponse {
   /** Cria outras CLIs falsas no mesmo diretório (simula uma instalação). */
   create?: Record<string, FakeToolSpec>;
   /** Modo interativo (para PTY): eco de linhas, comandos "flood", "env", "exit". */
-  interactive?: { banner?: string; ignoreSigint?: boolean; ignoreSigterm?: boolean };
+  interactive?: { banner?: string; ignoreSigint?: boolean; ignoreSigterm?: boolean; noBracketedPaste?: boolean };
 }
 export type FakeToolSpec = Record<string, FakeResponse> & { '*'?: FakeResponse };
 
@@ -80,20 +80,42 @@ if (r.interactive) {
   process.on('SIGTERM', () => { if (!it.ignoreSigterm) process.exit(143); });
   let buf = '';
   process.stdin.setEncoding('utf8');
-  process.stdin.on('data', (d) => {
-    buf += d;
-    let i;
-    while ((i = buf.search(/[\\r\\n]/)) >= 0) {
-      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
-      if (!line) continue;
-      if (line === 'exit') process.exit(0);
+  const handle = (line) => {
+    if (line === 'exit') process.exit(0);
       else if (line === 'fail') process.exit(3);
       else if (line === 'flood') { let out = ''; for (let n = 0; n < 20000; n++) out += 'linha ' + n + ' ' + 'x'.repeat(60) + '\\r\\n'; process.stdout.write(out); }
       else if (line === 'env') process.stdout.write('cwd=' + process.cwd() + ' keys=' + Object.keys(process.env).filter((k) => /KEY|TOKEN|ANTHROPIC|OPENAI|CLAUDE_CODE/.test(k)).join(',') + ' term=' + process.env.TERM + '\\r\\n');
       else process.stdout.write('eco: ' + line + '\\r\\n');
       process.stdout.write('> ');
-    }
-  });
+  };
+  if (!it.noBracketedPaste && process.stdin.isTTY) {
+    // Como as CLIs reais: modo raw, colagem delimitada (ESC[?2004h) e Enter só pelo teclado.
+    process.stdin.setRawMode(true);
+    process.stdout.write('\\x1b[?2004h');
+    let pasting = false;
+    process.stdin.on('data', (d) => {
+      let s = d;
+      while (s.length) {
+        if (s.startsWith('\\x1b[200~')) { pasting = true; s = s.slice(6); continue; }
+        if (s.startsWith('\\x1b[201~')) { pasting = false; s = s.slice(6); continue; }
+        if (s.startsWith('\\x1b[I') || s.startsWith('\\x1b[O')) { s = s.slice(3); continue; }
+        const ch = s[0]; s = s.slice(1);
+        if (!pasting && ch === '\\x03') { process.stdout.write('^C[SIGINT]\\r\\n> '); if (!it.ignoreSigint) process.exit(130); continue; }
+        if (!pasting && ch === '\\r') { process.stdout.write('\\r\\n'); const line = buf.trim(); buf = ''; if (line) handle(line); else process.stdout.write('> '); continue; }
+        const c = ch === '\\n' || ch === '\\r' ? ' ' : ch;
+        buf += c; process.stdout.write(c);
+      }
+    });
+  } else {
+    process.stdin.on('data', (d) => {
+      buf += d;
+      let i;
+      while ((i = buf.search(/[\\r\\n]/)) >= 0) {
+        const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+        if (line) handle(line);
+      }
+    });
+  }
 } else setTimeout(() => {
   if (r.create) for (const [n, s] of Object.entries(r.create)) create(n, s);
   if (r.stdout) process.stdout.write(r.stdout);
@@ -119,13 +141,13 @@ export const SPECS = {
   }),
   node: (version = 'v22.12.0'): FakeToolSpec => ({ '--version': { stdout: `${version}\n` } }),
   /** CLI de agente interativa; o login "autentica" recriando a CLI com status logado. */
-  interactiveAgent: (agent: 'claude' | 'codex', opts: { loggedIn?: boolean; ignoreSigint?: boolean; ignoreSigterm?: boolean } = {}): FakeToolSpec => {
+  interactiveAgent: (agent: 'claude' | 'codex', opts: { loggedIn?: boolean; ignoreSigint?: boolean; ignoreSigterm?: boolean; noBracketedPaste?: boolean } = {}): FakeToolSpec => {
     const base = agent === 'claude' ? SPECS.claude(opts.loggedIn ?? true) : SPECS.codex(opts.loggedIn ?? true);
     const loggedInSpec: FakeToolSpec = { ...(agent === 'claude' ? SPECS.claude(true) : SPECS.codex(true)), '': { interactive: { banner: `${agent} falso` } } };
     const loginKey = agent === 'claude' ? 'auth login' : 'login';
     return {
       ...base,
-      '': { interactive: { banner: `${agent} falso`, ignoreSigint: opts.ignoreSigint, ignoreSigterm: opts.ignoreSigterm } },
+      '': { interactive: { banner: `${agent} falso`, ignoreSigint: opts.ignoreSigint, ignoreSigterm: opts.ignoreSigterm, noBracketedPaste: opts.noBracketedPaste } },
       [loginKey]: { stdout: 'Abrindo navegador… Login successful.\n', create: { [agent]: loggedInSpec } },
     };
   },

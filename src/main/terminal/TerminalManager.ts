@@ -42,6 +42,8 @@ interface Session {
   replay: string;
   exited: Promise<void>;
   alive: boolean;
+  /** O programa ativou bracketed paste (ESC[?2004h) e não desativou depois. */
+  bracketedPaste: boolean;
 }
 
 /**
@@ -63,9 +65,10 @@ export class TerminalManager {
     if (this.has(key)) throw new Error('Já existe um processo ativo para este agente.');
     const pty = this.factory.spawn(spec.file, spec.args, { name: 'xterm-256color', cols: spec.cols, rows: spec.rows, cwd: spec.cwd, env: spec.env });
     let resolveExit!: () => void;
-    const s: Session = { pty, pid: pty.pid, pending: '', timer: null, unacked: 0, paused: false, replay: '', exited: new Promise((r) => { resolveExit = r; }), alive: true };
+    const s: Session = { pty, pid: pty.pid, pending: '', timer: null, unacked: 0, paused: false, replay: '', exited: new Promise((r) => { resolveExit = r; }), alive: true, bracketedPaste: false };
     this.sessions.set(key, s);
     pty.onData((d) => {
+      trackModes(s, d);
       s.pending += d;
       s.replay = (s.replay + d).slice(-this.o.replayBytes);
       if (!s.timer) s.timer = setTimeout(() => this.flush(key, s), this.o.flushMs);
@@ -98,6 +101,9 @@ export class TerminalManager {
   }
 
   isPaused(key: string): boolean { return this.sessions.get(key)?.paused ?? false; }
+
+  /** Estado do protocolo do terminal: o programa aceita colagem delimitada? */
+  bracketedPaste(key: string): boolean { return this.sessions.get(key)?.bracketedPaste ?? false; }
 
   write(key: string, data: string): void {
     const s = this.sessions.get(key);
@@ -145,6 +151,14 @@ export class TerminalManager {
     }
     // O PTY é líder de sessão: o grupo de processos tem o mesmo id; encerra a árvore.
     try { process.kill(-s.pid, sig); } catch { try { s.pty.kill(sig); } catch { /* já encerrado */ } }
+  }
+}
+
+/** Atualiza modos privados DEC relevantes a partir da saída do programa (ESC[?…h / ESC[?…l). */
+function trackModes(s: { bracketedPaste: boolean }, data: string): void {
+  if (!data.includes('\x1b[?')) return;
+  for (const m of data.matchAll(/\x1b\[\?([0-9;]+)([hl])/g)) {
+    if (m[1]!.split(';').includes('2004')) s.bracketedPaste = m[2] === 'h';
   }
 }
 

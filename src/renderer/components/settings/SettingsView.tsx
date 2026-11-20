@@ -34,7 +34,8 @@ export function SettingsView() {
         <p className="text-xs text-muted">Opcional. Use quando a ferramenta não estiver no PATH. Vazio = detecção automática.</p>
         {TOOLS.map((t) => <CliPathField key={t.key} tool={t.key} label={t.label} value={settings.cliPaths[t.key]} />)}
       </fieldset>
-      <p className="text-muted">Limites, permissões e retenção entram nas próximas fases.</p>
+      <MaxRoundsField />
+      <p className="text-muted">Retenção do histórico e demais limites entram nas próximas fases.</p>
     </div>
   );
 }
@@ -61,5 +62,23 @@ function CliPathField({ tool, label, value }: { tool: keyof Settings['cliPaths']
       </div>
       {error && <p className="text-xs text-warn" role="alert">{error}</p>}
     </div>
+  );
+}
+
+function MaxRoundsField() {
+  const value = useAppStore((s) => s.settings.maxReviewRounds);
+  const setSetting = useAppStore((s) => s.setSetting);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <fieldset className="flex flex-col gap-1">
+      <legend className="mb-1 text-muted">Revisão</legend>
+      <label className="flex items-center gap-2 text-xs" htmlFor="max-rounds">Rodadas máximas de revisão por tarefa
+        <input id="max-rounds" type="number" min={1} max={10} value={value} data-testid="max-rounds"
+          onChange={(e) => void setSetting('maxReviewRounds', Number(e.target.value)).then(setError)}
+          className="w-16 rounded border border-border bg-bg px-2 py-1" />
+      </label>
+      <p className="text-xs text-muted">Vale para tarefas novas. Ao atingir o limite, só restam decisões suas (aprovar, rejeitar, cancelar).</p>
+      {error && <p role="alert" className="text-xs text-warn">{error}</p>}
+    </fieldset>
   );
 }

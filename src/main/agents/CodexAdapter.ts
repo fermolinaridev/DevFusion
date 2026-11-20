@@ -7,6 +7,8 @@ export const CODEX_CONFIG: CliAgentConfig = {
   tool: 'codex',
   agentArgs: [],
   loginArgs: ['login'],
+  // Valores listados em `codex --help`: sandbox somente leitura e aprovação sob demanda.
+  permissionArgs: { 'cli-default': [], 'read-only': ['--sandbox', 'read-only', '--ask-for-approval', 'on-request'] },
   capabilities: {
     interactive: true,
     automatable: false,

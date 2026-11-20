@@ -1,7 +1,7 @@
 {
   "name": "devfusion",
   "productName": "DevFusion",
-  "version": "0.1.0-dev",
+  "version": "0.1.0",
   "private": true,
   "description": "Workspace desktop local para usar Claude Code e Codex lado a lado pelas CLIs oficiais.",
   "license": "MIT",

@@ -86,6 +86,25 @@ describe.skipIf(process.platform === 'win32')('AgentService', () => {
   });
 });
 
+describe.skipIf(process.platform === 'win32')('sendMessage', () => {
+  it('cola com bracketed paste quando suportado; recusa várias linhas sem ele; nunca envia Enter', async () => {
+    tools.add('claude', SPECS.interactiveAgent('claude'));
+    tools.add('codex', SPECS.interactiveAgent('codex', { noBracketedPaste: true }));
+    make();
+    await svc.start('claude', 'agent', 80, 24);
+    await svc.start('codex', 'agent', 80, 24);
+    await vi.waitFor(() => { expect(out['claude']).toContain('>'); expect(out['codex']).toContain('>'); });
+    await svc.adapter('claude').sendMessage('linha A\nlinha B');
+    await vi.waitFor(() => expect(out['claude']).toContain('linha A linha B'));
+    await expect(svc.adapter('codex').sendMessage('x\ny')).rejects.toThrow(/colagem segura/);
+    await svc.adapter('codex').sendMessage('uma linha');
+    await vi.waitFor(() => expect(out['codex']).toContain('uma linha'));
+    await new Promise((r) => setTimeout(r, 300));
+    expect(out['claude']).not.toContain('eco:');
+    expect(out['codex']).not.toContain('eco:');
+  });
+});
+
 describe('sanitizePaste', () => {
   it('remove escapes e controles, preserva quebras de linha e tabs', () => {
     expect(sanitizePaste('a\x1b[201~\x1b]0;x\x07b\r\nc\td\x03')).toBe('a[201~]0;xb\nc\td');

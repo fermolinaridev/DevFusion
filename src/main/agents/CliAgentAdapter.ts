@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { CheckResult } from '@shared/doctor';
 import type { AgentCapabilities, AgentId, AgentSessionInfo, AgentStatus, SessionKind } from '@shared/agents';
+import type { PermissionPreset } from '@shared/orchestration';
 import type { PlatformDetector, ToolName } from '../system/PlatformDetector';
 import { ptyCommand, type TerminalManager } from '../terminal/TerminalManager';
 import type { AgentAdapter } from './AgentAdapter';
@@ -13,6 +14,8 @@ export interface CliAgentConfig {
   agentArgs: string[];
   /** Comando oficial de login da CLI. */
   loginArgs: string[];
+  /** Flags oficiais por preset de permissão. Nunca incluir bypass/danger. */
+  permissionArgs: Record<PermissionPreset, string[]>;
   capabilities: AgentCapabilities;
 }
 
@@ -25,6 +28,8 @@ export interface CliAgentDeps {
   onSessionCreated?: (sessionId: string, agent: AgentId, kind: SessionKind) => void;
   onSessionEnded?: (sessionId: string, status: AgentStatus, kind: SessionKind) => void;
 }
+
+export class PasteNotSafeError extends Error {}
 
 /** Remove sequências de escape/controle (exceto \n e \t) de texto colado no terminal. */
 export function sanitizePaste(text: string): string {
@@ -39,7 +44,7 @@ export class CliAgentAdapter implements AgentAdapter {
   constructor(private readonly cfg: CliAgentConfig, private readonly deps: CliAgentDeps) {
     this.id = cfg.id;
     this.name = cfg.name;
-    this.info = { agent: cfg.id, kind: 'agent', status: 'idle', stopping: false, sessionId: null, pid: null, cwd: null, command: null, startedAt: null, endedAt: null, exitCode: null, signal: null, error: null, capabilities: cfg.capabilities };
+    this.info = { agent: cfg.id, kind: 'agent', status: 'idle', permission: 'cli-default', stopping: false, sessionId: null, pid: null, cwd: null, command: null, startedAt: null, endedAt: null, exitCode: null, signal: null, error: null, capabilities: cfg.capabilities };
   }
 
   snapshot(): AgentSessionInfo { return { ...this.info }; }
@@ -58,14 +63,15 @@ export class CliAgentAdapter implements AgentAdapter {
 
   getStatus(): AgentStatus { return this.info.status; }
 
-  async startSession(cwd: string, opts: { kind: SessionKind; cols: number; rows: number }): Promise<void> {
+  async startSession(cwd: string, opts: { kind: SessionKind; cols: number; rows: number; permission?: PermissionPreset }): Promise<void> {
     if (this.deps.terminals.has(this.id)) throw new Error(`${this.name} já está em execução.`);
     const { found } = this.deps.detector.locate(this.cfg.tool, this.deps.configuredPath());
     if (!found) {
       this.update({ status: 'failed', error: `${this.name} não foi encontrado. Instale ou configure o caminho no System Doctor.` });
       throw new Error(this.info.error!);
     }
-    const args = opts.kind === 'login' ? this.cfg.loginArgs : this.cfg.agentArgs;
+    const permission = opts.kind === 'login' ? 'cli-default' : opts.permission ?? 'cli-default';
+    const args = opts.kind === 'login' ? this.cfg.loginArgs : [...this.cfg.agentArgs, ...this.cfg.permissionArgs[permission]];
     const env: NodeJS.ProcessEnv = { ...this.deps.detector.childEnv(), TERM: 'xterm-256color', COLORTERM: 'truecolor' };
     delete env['NO_COLOR'];
     const sessionId = randomUUID();
@@ -73,7 +79,7 @@ export class CliAgentAdapter implements AgentAdapter {
       const cmd = ptyCommand(found.path, args, this.deps.detector.platform, env);
       const pid = this.deps.terminals.start(this.id, { file: cmd.file, args: cmd.args, cwd, env, cols: opts.cols, rows: opts.rows });
       this.update({
-        kind: opts.kind, status: 'running', stopping: false, sessionId, pid, cwd: this.deps.detector.shortenHome(cwd),
+        kind: opts.kind, permission, status: 'running', stopping: false, sessionId, pid, cwd: this.deps.detector.shortenHome(cwd),
         command: [this.cfg.tool, ...args].join(' '), startedAt: new Date().toISOString(), endedAt: null, exitCode: null, signal: null, error: null,
       });
       this.deps.onSessionCreated?.(sessionId, this.id, opts.kind);
@@ -92,7 +98,14 @@ export class CliAgentAdapter implements AgentAdapter {
 
   async sendMessage(message: string): Promise<void> {
     if (!this.deps.terminals.has(this.id)) throw new Error(`${this.name} não está em execução.`);
-    this.deps.terminals.write(this.id, `\x1b[200~${sanitizePaste(message)}\x1b[201~`);
+    const text = sanitizePaste(message);
+    if (this.deps.terminals.bracketedPaste(this.id)) {
+      this.deps.terminals.write(this.id, `\x1b[200~${text}\x1b[201~`);
+      return;
+    }
+    // Sem colagem delimitada, cada quebra de linha seria um Enter: nunca enviar sozinho.
+    if (text.includes('\n')) throw new PasteNotSafeError(`${this.name} não está aceitando colagem segura de várias linhas neste momento (o programa não ativou bracketed paste). Copie o texto manualmente ou envie uma linha só.`);
+    this.deps.terminals.write(this.id, text);
   }
 
   async interrupt(): Promise<void> { this.deps.terminals.interrupt(this.id); }

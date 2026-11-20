@@ -4,7 +4,12 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import type { AgentId } from '@shared/agents';
-import { terminalSizes } from '../../stores/agentStore';
+import { terminalSizes, useAgentStore } from '../../stores/agentStore';
+
+/** Terminais montados, para focar e ler a seleção a partir de outros componentes. */
+const terminals = new Map<AgentId, Terminal>();
+export const focusTerminal = (agent: AgentId) => terminals.get(agent)?.focus();
+export const terminalSelection = (agent: AgentId) => terminals.get(agent)?.getSelection() ?? '';
 
 function themeFromCss(): ITheme {
   const css = getComputedStyle(document.documentElement);
@@ -37,6 +42,8 @@ export function TerminalView({ agent, sessionId, themeKey }: { agent: AgentId; s
     term.loadAddon(new WebLinksAddon((_e, uri) => { window.open(uri); }));
     term.open(el);
     termRef.current = term;
+    terminals.set(agent, term);
+    const sel = term.onSelectionChange(() => useAgentStore.getState().setHasSelection(agent, term.hasSelection()));
 
     const doFit = () => {
       try { fit.fit(); } catch { return; }
@@ -55,7 +62,7 @@ export function TerminalView({ agent, sessionId, themeKey }: { agent: AgentId; s
     const input = term.onData((d) => { void window.devfusion.terminal.write(agent, d); });
     void window.devfusion.terminal.replay(agent).then((r) => { if (r.ok && r.data) term.write(r.data); });
 
-    return () => { offData(); input.dispose(); ro.disconnect(); cancelAnimationFrame(raf); term.dispose(); termRef.current = null; };
+    return () => { offData(); input.dispose(); sel.dispose(); ro.disconnect(); cancelAnimationFrame(raf); if (terminals.get(agent) === term) terminals.delete(agent); term.dispose(); termRef.current = null; };
   }, [agent]);
 
   // Nova sessão: limpa a tela anterior e leva o foco do teclado ao terminal,

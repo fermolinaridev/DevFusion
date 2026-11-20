@@ -6,6 +6,13 @@ import type { InstallMethod } from '@shared/doctor';
 import { IPC, IPC_EVENTS, type IpcEvent } from '@shared/ipcChannels';
 import type { AppInfo, IpcHandlers } from '@shared/ipcContracts';
 import { AgentService } from './agents/AgentService';
+import { ApprovalRepository } from './database/repositories/ApprovalRepository';
+import { MessageRepository } from './database/repositories/MessageRepository';
+import { TaskRepository } from './database/repositories/TaskRepository';
+import { LoopGuard } from './orchestrator/LoopGuard';
+import { BusError, MessageBus } from './orchestrator/MessageBus';
+import { TaskError, TaskScheduler } from './orchestrator/TaskScheduler';
+import { GitManager } from './workspace/GitManager';
 import { migrate, openDatabase, sqliteVersion, type Db } from './database/Database';
 import { AuditLogRepository } from './database/repositories/AuditLogRepository';
 import { DependencyRepository } from './database/repositories/DependencyRepository';
@@ -113,6 +120,38 @@ if (!app.requestSingleInstanceLock()) {
       },
     });
     agents = agentService;
+
+    const gitPath = () => detector.locate('git', settings.getAll().cliPaths.git).found?.path ?? null;
+    const guard = new LoopGuard();
+    const bus = new MessageBus({
+      repo: new MessageRepository(db),
+      guard,
+      workspaceId: () => workspace.currentId(),
+      isRunning: (a) => agentService.isRunning(a),
+      deliver: (a, text) => agentService.adapter(a).sendMessage(text),
+      emit: (msg) => send(IPC_EVENTS.chatMessage, msg),
+    });
+    const git = new GitManager(runCommand, gitPath, () => detector.childEnv());
+    const tasks = new TaskScheduler({
+      repo: new TaskRepository(db),
+      approvals: new ApprovalRepository(db),
+      bus,
+      guard,
+      workspace: () => { const id = workspace.currentId(); const path = workspace.currentPath(); return id && path ? { id, path } : null; },
+      maxRounds: () => settings.getAll().maxReviewRounds,
+      snapshot: (path) => git.reviewSnapshot(path),
+      audit: (action, target, metadata) => audit.record(action, target, metadata),
+      emit: (task) => send(IPC_EVENTS.taskUpdated, task),
+    });
+    /** Erros esperados (regras de negócio) viram mensagem para o usuário; o resto é erro interno. */
+    const expected = <T>(fn: () => T): { ok: true; value: T } | { ok: false; reason: string } => {
+      try { return { ok: true, value: fn() }; }
+      catch (e) { if (e instanceof BusError || e instanceof TaskError) return { ok: false, reason: e.message }; throw e; }
+    };
+    const expectedAsync = async <T>(fn: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false; reason: string }> => {
+      try { return { ok: true, value: await fn() }; }
+      catch (e) { if (e instanceof BusError || e instanceof TaskError) return { ok: false, reason: e.message }; throw e; }
+    };
     await workspace.restore(settings.getAll().lastWorkspaceId);
 
     const openAllowed = async (url: string) => {
@@ -158,6 +197,7 @@ if (!app.requestSingleInstanceLock()) {
         try {
           const info = await workspace.open(chosen);
           settings.set('lastWorkspaceId', info.id);
+          send(IPC_EVENTS.workspaceChanged, info);
           audit.record('workspace.open', info.id, {});
           void doctor.run(['workspace']);
           return { ok: true, value: info };
@@ -167,8 +207,8 @@ if (!app.requestSingleInstanceLock()) {
         }
       },
       [IPC.agentsList]: () => agentService.list(),
-      [IPC.agentStart]: async ({ agent, kind, cols, rows }) => {
-        try { return { ok: true, value: await agentService.start(agent, kind, cols, rows) }; }
+      [IPC.agentStart]: async ({ agent, kind, cols, rows, permission }) => {
+        try { return { ok: true, value: await agentService.start(agent, kind, cols, rows, permission) }; }
         catch (e) { return { ok: false, reason: (e as Error).message }; }
       },
       [IPC.agentInterrupt]: async ({ agent }) => { await agentService.adapter(agent).interrupt(); },
@@ -178,6 +218,14 @@ if (!app.requestSingleInstanceLock()) {
       [IPC.terminalResize]: ({ agent, cols, rows }) => agentService.terminals.resize(agent, cols, rows),
       [IPC.terminalAck]: ({ agent, bytes }) => agentService.terminals.ack(agent, bytes),
       [IPC.terminalReplay]: ({ agent }) => agentService.terminals.replay(agent),
+      [IPC.chatList]: (arg) => bus.history(arg?.limit ?? 200),
+      [IPC.chatSend]: ({ to, content }) => expectedAsync(() => bus.send({ kind: 'message', sender: 'user', to, content })),
+      [IPC.chatForward]: ({ from, to, content }) => expectedAsync(() => bus.send({ kind: 'forward', sender: from, to, content })),
+      [IPC.tasksList]: () => tasks.list(),
+      [IPC.tasksCreate]: (input) => expected(() => tasks.create(input)),
+      [IPC.tasksPreview]: ({ taskId, action, notes }) => expectedAsync(() => tasks.preview(taskId, action, notes)),
+      [IPC.tasksSend]: ({ taskId, action, content }) => expectedAsync(() => tasks.send(taskId, action, content)),
+      [IPC.tasksDecide]: ({ taskId, decision, note }) => expected(() => tasks.decide(taskId, decision, note)),
     };
     registerIpc(handlers, () => mainWindow, log);
 

@@ -31,10 +31,10 @@ Estimativa inicial de referência: 13 semanas de trabalho individual; não é pr
 - [x] Testar ambos os agentes com contas oficiais do usuário (Claude Pro e Codex Plus validados no app; Windows pendente).
 
 ## 4 — Orquestração
-- [ ] Bus, fila, estados, tarefas, limites e proteção contra loops.
-- [ ] Modo manual, colaborativo e code review conforme capacidades.
-- [ ] Aprovações e encaminhamento automático apenas se permitido.
-- [ ] Entregar MVP v0.1.
+- [x] Bus, fila, estados, tarefas, limites e proteção contra loops.
+- [x] Modo manual e code review (desenvolvedor/revisor). Colaborativo = chat compartilhado + encaminhamento manual.
+- [x] Aprovações humanas registradas; encaminhamento automático não habilitado (decisão do usuário; Claude bloqueado por termos).
+- [x] Entregar MVP v0.1 (v0.1.0, macOS). Ver [13-FASE4-ORQUESTRACAO.md](13-FASE4-ORQUESTRACAO.md).
 
 ## 5 — Git
 - [ ] Seleção de projeto, árvore, monitoramento, branches, worktrees, diff, conflitos, merge e rollback autorizados.

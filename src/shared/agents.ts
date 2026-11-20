@@ -1,8 +1,9 @@
 import { z } from 'zod';
+import { PERMISSION_PRESETS, type PermissionPreset } from './orchestration';
 
-export const AGENT_IDS = ['claude', 'codex'] as const;
-export type AgentId = (typeof AGENT_IDS)[number];
-export const AGENT_NAMES: Record<AgentId, string> = { claude: 'Claude Code', codex: 'Codex' };
+import { AGENT_IDS, type AgentId } from './agentIds';
+
+export { AGENT_IDS, AGENT_NAMES, type AgentId } from './agentIds';
 
 /** "agent" = CLI interativa; "login" = comando oficial de login da CLI. */
 export type SessionKind = 'agent' | 'login';
@@ -26,6 +27,8 @@ export interface AgentSessionInfo {
   agent: AgentId;
   kind: SessionKind;
   status: AgentStatus;
+  /** Preset de permissão usado ao iniciar (flags oficiais da CLI). */
+  permission: PermissionPreset;
   /** Encerramento em andamento (Ctrl‑C → SIGTERM → SIGKILL). */
   stopping: boolean;
   sessionId: string | null;
@@ -51,7 +54,7 @@ export interface WorkspaceInfo {
 const agent = z.enum(AGENT_IDS);
 export const AgentArgsSchema = z.object({ agent }).strict();
 export const AgentStartArgsSchema = z
-  .object({ agent, kind: z.enum(['agent', 'login']), cols: z.number().int().min(2).max(1000), rows: z.number().int().min(2).max(500) })
+  .object({ agent, kind: z.enum(['agent', 'login']), cols: z.number().int().min(2).max(1000), rows: z.number().int().min(2).max(500), permission: z.enum(PERMISSION_PRESETS).default('cli-default') })
   .strict();
 /** Entrada do teclado do xterm (limitada para não travar o PTY). */
 export const TerminalWriteArgsSchema = z.object({ agent, data: z.string().min(1).max(65_536) }).strict();

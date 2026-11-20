@@ -31,14 +31,15 @@ Dois agentes de programação independentes trabalham no mesmo projeto lógico, 
 - Não pressupor que execução local significa IA offline: as CLIs consultam serviços externos.
 
 ## MVP v0.1
-- [ ] Diagnóstico e instalação assistida
-- [ ] Login oficial e dois terminais
-- [ ] Seleção de workspace
-- [ ] Chat central e encaminhamento manual
-- [ ] Encaminhamento automático se autorizado e tecnicamente suportado
-- [ ] Desenvolvedor/revisor
-- [ ] Histórico local
-- [ ] Controle de permissões, interrupção e parada geral
+Situação em 2026-11-20 (v0.1.0, validado no macOS; Windows/Linux pendentes):
+- [x] Diagnóstico e instalação assistida (Fase 2)
+- [x] Login oficial e dois terminais (Fase 3)
+- [x] Seleção de workspace (Fase 3)
+- [x] Chat central e encaminhamento manual (Fase 4)
+- [ ] Encaminhamento automático se autorizado e tecnicamente suportado — **fora do v0.1 por decisão do usuário**: Claude bloqueado pelos termos; Codex via App Server fica como opt-in futuro ([13-FASE4-ORQUESTRACAO.md](13-FASE4-ORQUESTRACAO.md))
+- [x] Desenvolvedor/revisor (Fase 4)
+- [x] Histórico local (chat, tarefas, aprovações e sessões no SQLite; tela de Sessões na Fase 6)
+- [x] Controle de permissões, interrupção e parada geral (Fases 3 e 4)
 
 ## Fora do MVP / v2
 GitHub/GitLab, MCP, Gemini, Ollama, agentes customizados, equipes maiores, plugins/skills, workflows visuais, indexação, memória compartilhada avançada, grafo de dependências, SSH, CPU/RAM, métricas, agendamento e voz.

@@ -21,6 +21,8 @@ export const SETTINGS_SCHEMA = {
     .strict(),
   /** Último workspace aberto (id da tabela workspaces). */
   lastWorkspaceId: z.string().uuid().nullable(),
+  /** Rodadas máximas de revisão por tarefa (proteção contra loops). */
+  maxReviewRounds: z.number().int().min(1).max(10),
 } as const;
 
 export type SettingKey = keyof typeof SETTINGS_SCHEMA;
@@ -31,6 +33,7 @@ export const DEFAULT_SETTINGS: Settings = {
   onboardingCompleted: false,
   cliPaths: { git: null, claude: null, codex: null },
   lastWorkspaceId: null,
+  maxReviewRounds: 3,
 };
 
 export const SETTING_KEYS = Object.keys(SETTINGS_SCHEMA) as SettingKey[];

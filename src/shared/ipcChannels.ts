@@ -22,6 +22,14 @@ export const IPC = {
   terminalResize: 'terminal:resize',
   terminalAck: 'terminal:ack',
   terminalReplay: 'terminal:replay',
+  chatList: 'chat:list',
+  chatSend: 'chat:send',
+  chatForward: 'chat:forward',
+  tasksList: 'tasks:list',
+  tasksCreate: 'tasks:create',
+  tasksPreview: 'tasks:preview',
+  tasksSend: 'tasks:send',
+  tasksDecide: 'tasks:decide',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -33,5 +41,8 @@ export const IPC_EVENTS = {
   installerState: 'event:installer-state',
   agentState: 'event:agent-state',
   terminalData: 'event:terminal-data',
+  chatMessage: 'event:chat-message',
+  taskUpdated: 'event:task-updated',
+  workspaceChanged: 'event:workspace-changed',
 } as const;
 export type IpcEvent = (typeof IPC_EVENTS)[keyof typeof IPC_EVENTS];

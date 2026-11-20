@@ -15,10 +15,11 @@ Aplicativo desktop local para utilizar Claude Code e Codex em uma única interfa
 - [Fase 1 — fundação Electron](docs/10-FASE1-FUNDACAO.md)
 - [Fase 2 — System Doctor e onboarding](docs/11-FASE2-SYSTEM-DOCTOR.md)
 - [Fase 3 — dois agentes na mesma tela](docs/12-FASE3-AGENTES.md)
+- [Fase 4 — comunicação, revisão e MVP v0.1](docs/13-FASE4-ORQUESTRACAO.md)
 - [Prompt de implementação](PROMPT.md)
 - [Instruções dos agentes](AGENTS.md) e [CLAUDE.md](CLAUDE.md)
 
-Estado atual: Fase 3 concluída no macOS — base Electron com IPC seguro e SQLite, System Doctor em toda inicialização, onboarding e instalação assistida com consentimento, e agora Claude Code e Codex lado a lado em terminais integrados (login oficial, interromper, Parar tudo). Chat compartilhado e encaminhamento entre agentes: Fase 4. A POC da Fase 0 está em `poc/`.
+Estado atual: **MVP v0.1.0** (Fases 0–4) validado no macOS com Claude Pro e ChatGPT Plus: System Doctor e instalação assistida, login oficial e dois terminais integrados, workspace, chat compartilhado com encaminhamento **manual** (o texto é colado no terminal e você confirma com Enter), modo desenvolvedor/revisor com diff do Git e aprovação humana, presets de permissão oficiais, Parar tudo e histórico local. Windows e Linux ainda não foram testados. Próximas fases: Git Worktrees (5), interface avançada (6), estabilidade (7) e distribuição (8). A POC da Fase 0 está em `poc/`.
 
 ## Desenvolvimento
 Requisitos: Node.js ≥ 22.13 e npm.
