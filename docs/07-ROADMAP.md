@@ -40,7 +40,7 @@ Estimativa inicial de referência: 13 semanas de trabalho individual; não é pr
 - [x] Seleção de projeto, árvore, monitoramento, branches, worktrees, diff, conflitos, merge e rollback autorizados. Ver [15-FASE5-GIT.md](15-FASE5-GIT.md) (macOS; Windows pendente).
 
 ## 6 — UI avançada
-- [ ] Monaco, dashboard, histórico, temas, atalhos, notificações, personalização, modos avançados suportados.
+- [x] Monaco, dashboard, histórico, temas, atalhos, notificações, personalização, modos avançados suportados. Ver [16-FASE6-UI.md](16-FASE6-UI.md) (macOS; Windows pendente).
 
 ## 7 — Estabilidade
 - [ ] Unitários, integração e E2E; falhas, limites, recuperação, processos órfãos, logs sanitizados e revisão de segurança.

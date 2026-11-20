@@ -23,6 +23,12 @@ export const SETTINGS_SCHEMA = {
   lastWorkspaceId: z.string().uuid().nullable(),
   /** Rodadas máximas de revisão por tarefa (proteção contra loops). */
   maxReviewRounds: z.number().int().min(1).max(10),
+  /** Tamanho da fonte dos terminais e do editor. */
+  terminalFontSize: z.number().int().min(10).max(24),
+  /** Dias de retenção do histórico do chat (0 = manter sempre). */
+  historyRetentionDays: z.number().int().min(0).max(3650),
+  /** Notificações do sistema (só com a janela em segundo plano). */
+  notifications: z.object({ agentFailed: z.boolean(), installDone: z.boolean(), usageHigh: z.boolean() }).strict(),
 } as const;
 
 export type SettingKey = keyof typeof SETTINGS_SCHEMA;
@@ -34,6 +40,9 @@ export const DEFAULT_SETTINGS: Settings = {
   cliPaths: { git: null, claude: null, codex: null },
   lastWorkspaceId: null,
   maxReviewRounds: 3,
+  terminalFontSize: 13,
+  historyRetentionDays: 0,
+  notifications: { agentFailed: true, installDone: true, usageHigh: true },
 };
 
 export const SETTING_KEYS = Object.keys(SETTINGS_SCHEMA) as SettingKey[];

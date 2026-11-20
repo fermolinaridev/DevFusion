@@ -80,3 +80,11 @@ export const WorktreeRemoveArgsSchema = z.object({ id, deleteBranch: z.boolean()
 export const ExplorerListArgsSchema = z.object({ location: LocationSchema, rel: relPath }).strict();
 export const ExplorerDiffArgsSchema = z.object({ location: LocationSchema, rel: relPath.refine((p) => p.length > 0, 'Arquivo obrigatório') }).strict();
 export const GitStatusArgsSchema = z.object({ location: LocationSchema }).strict();
+export const EditorReadArgsSchema = ExplorerDiffArgsSchema;
+export const EditorWriteArgsSchema = z.object({
+  location: LocationSchema,
+  rel: relPath.refine((p) => p.length > 0, 'Arquivo obrigatório'),
+  content: z.string().max(2 * 1024 * 1024),
+  expectedMtimeMs: z.number().nonnegative(),
+  overwrite: z.boolean(),
+}).strict();

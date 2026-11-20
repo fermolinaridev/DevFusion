@@ -5,6 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import type { AgentId } from '@shared/agents';
 import { terminalSizes, useAgentStore } from '../../stores/agentStore';
+import { useAppStore } from '../../stores/appStore';
 
 /** Terminais montados, para focar e ler a seleção a partir de outros componentes. */
 const terminals = new Map<AgentId, Terminal>();
@@ -31,7 +32,7 @@ export function TerminalView({ agent, sessionId, themeKey }: { agent: AgentId; s
     const term = new Terminal({
       scrollback: 5000,
       fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--font-mono') || 'monospace',
-      fontSize: 13,
+      fontSize: useAppStore.getState().settings.terminalFontSize,
       cursorBlink: true,
       convertEol: false,
       // CLIs como o Codex capturam o mouse; ⌥ Option (macOS) / Shift (outros) força a seleção de texto.
@@ -75,6 +76,8 @@ export function TerminalView({ agent, sessionId, themeKey }: { agent: AgentId; s
     termRef.current?.focus();
   }, [sessionId]);
   useEffect(() => { if (termRef.current) termRef.current.options.theme = themeFromCss(); }, [themeKey]);
+  const fontSize = useAppStore((s) => s.settings.terminalFontSize);
+  useEffect(() => { if (termRef.current) termRef.current.options.fontSize = fontSize; }, [fontSize]);
 
   return <div ref={host} className="h-full w-full overflow-hidden px-1 pt-1" data-testid={`terminal-${agent}`} />;
 }

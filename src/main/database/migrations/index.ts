@@ -162,4 +162,12 @@ export const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE tasks ADD COLUMN worktree_id TEXT REFERENCES worktrees(id) ON DELETE SET NULL;
     `,
   },
+  {
+    version: 5,
+    name: 'workspace_last_opened',
+    sql: `
+      ALTER TABLE workspaces ADD COLUMN last_opened_at TEXT;
+      CREATE INDEX idx_workspaces_last_opened ON workspaces(last_opened_at);
+    `,
+  },
 ];

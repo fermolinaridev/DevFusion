@@ -35,7 +35,8 @@ export function SettingsView() {
         {TOOLS.map((t) => <CliPathField key={t.key} tool={t.key} label={t.label} value={settings.cliPaths[t.key]} />)}
       </fieldset>
       <MaxRoundsField />
-      <p className="text-muted">Retenção do histórico e demais limites entram nas próximas fases.</p>
+      <PersonalizationFields />
+      <p className="text-xs text-muted">Atalhos de teclado: ⌘/Ctrl+Shift+/ mostra a lista.</p>
     </div>
   );
 }
@@ -80,5 +81,47 @@ function MaxRoundsField() {
       <p className="text-xs text-muted">Vale para tarefas novas. Ao atingir o limite, só restam decisões suas (aprovar, rejeitar, cancelar).</p>
       {error && <p role="alert" className="text-xs text-warn">{error}</p>}
     </fieldset>
+  );
+}
+
+function PersonalizationFields() {
+  const settings = useAppStore((s) => s.settings);
+  const setSetting = useAppStore((s) => s.setSetting);
+  const [error, setError] = useState<string | null>(null);
+  const n = settings.notifications;
+  const NOTIF: Array<{ key: keyof typeof n; label: string }> = [
+    { key: 'agentFailed', label: 'Processo de agente terminou com erro' },
+    { key: 'installDone', label: 'Instalação concluída ou com falha' },
+    { key: 'usageHigh', label: 'Janela de uso do plano em 90% ou mais' },
+  ];
+  return (
+    <>
+      <fieldset className="flex flex-col gap-1">
+        <legend className="mb-1 text-muted">Aparência</legend>
+        <label className="flex items-center gap-2 text-xs" htmlFor="font-size">Tamanho da fonte (terminais e editor)
+          <input id="font-size" type="number" min={10} max={24} value={settings.terminalFontSize} data-testid="font-size"
+            onChange={(e) => void setSetting('terminalFontSize', Number(e.target.value)).then(setError)} className="w-16 rounded border border-border bg-bg px-2 py-1" />
+        </label>
+      </fieldset>
+      <fieldset className="flex flex-col gap-1">
+        <legend className="mb-1 text-muted">Histórico</legend>
+        <label className="flex items-center gap-2 text-xs" htmlFor="retention">Apagar mensagens do chat com mais de
+          <input id="retention" type="number" min={0} max={3650} value={settings.historyRetentionDays} data-testid="retention"
+            onChange={(e) => void setSetting('historyRetentionDays', Number(e.target.value)).then(setError)} className="w-20 rounded border border-border bg-bg px-2 py-1" /> dias
+        </label>
+        <p className="text-xs text-muted">0 = manter sempre. A limpeza roda ao abrir o app; a auditoria nunca é apagada.</p>
+      </fieldset>
+      <fieldset className="flex flex-col gap-1">
+        <legend className="mb-1 text-muted">Notificações do sistema</legend>
+        <p className="text-xs text-muted">Só aparecem com o DevFusion em segundo plano e só para fatos (nada é estimado).</p>
+        {NOTIF.map((o) => (
+          <label key={o.key} className="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={n[o.key]} data-testid={`notif-${o.key}`} onChange={(e) => void setSetting('notifications', { ...n, [o.key]: e.target.checked }).then(setError)} />
+            {o.label}
+          </label>
+        ))}
+      </fieldset>
+      {error && <p role="alert" className="text-xs text-warn">{error}</p>}
+    </>
   );
 }

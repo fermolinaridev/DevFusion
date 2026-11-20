@@ -162,7 +162,7 @@ test('Explorer: árvore com status Git, pastas sob demanda e diff do arquivo', a
   await expect(page.getByTestId('explorer-status-src')).toHaveText('M');
   await page.getByTestId('explorer-item-src').click();
   await expect(page.getByTestId('explorer-status-src/novo.ts')).toHaveText('U');
-  await page.getByTestId('explorer-item-src/novo.ts').click();
+  await page.getByTestId('explorer-diff-src/novo.ts').click();
   await expect(page.getByTestId('diff-text')).toContainText('+export const novo = true;');
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('explorer-tree')).not.toContainText('.git');

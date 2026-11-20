@@ -1,4 +1,5 @@
-import { app, BrowserWindow, dialog, shell } from 'electron';
+import { app, BrowserWindow, dialog, Notification, shell } from 'electron';
+import { writeFile } from 'node:fs/promises';
 import type { GitLocation, RepoStatus } from '@shared/git';
 import * as nodePty from 'node-pty';
 import { statfs } from 'node:fs/promises';
@@ -17,6 +18,10 @@ import { GitManager } from './workspace/GitManager';
 import { WorktreeRepository } from './database/repositories/WorktreeRepository';
 import { ExplorerError, listDir, watchTree } from './workspace/FileExplorer';
 import { GitOpError, WorktreeManager } from './workspace/WorktreeManager';
+import { readTextFile, writeTextFile } from './workspace/FileEditor';
+import { HistoryService } from './history/HistoryService';
+import { Notifier } from './system/Notifier';
+import { existsSync } from 'node:fs';
 import { ClaudeStatuslineBridge } from './usage/ClaudeStatuslineBridge';
 import { readCodexUsage } from './usage/CodexUsageReader';
 import { UsageService } from './usage/UsageService';
@@ -75,12 +80,22 @@ if (!app.requestSingleInstanceLock()) {
     const dependencies = new DependencyRepository(db);
     const sqlite = sqliteVersion(db);
 
+    const history = new HistoryService(db);
+    const removed = history.applyRetention(settings.getAll().historyRetentionDays);
+    if (removed > 0) log.info('Retenção do histórico aplicada', { mensagensRemovidas: removed });
+    const notifier = new Notifier({
+      isSupported: () => Notification.isSupported(),
+      show: (title, body) => new Notification({ title, body, silent: false }).show(),
+      windowFocused: () => Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()),
+      settings: () => settings.getAll().notifications,
+    });
     const sessions = new SessionRepository(db);
     const stale = sessions.markStaleAsDisconnected();
     if (stale > 0) log.info('Sessões da execução anterior marcadas como desconectadas', { count: stale });
 
     const detector = new PlatformDetector();
-    const workspace = new WorkspaceManager(new WorkspaceRepository(db), detector, runCommand, () => detector.locate('git', settings.getAll().cliPaths.git).found?.path ?? null);
+    const workspaceRepo = new WorkspaceRepository(db);
+    const workspace = new WorkspaceManager(workspaceRepo, detector, runCommand, () => detector.locate('git', settings.getAll().cliPaths.git).found?.path ?? null);
     const connectivityTargets = defaultConnectivityTargets(process.env);
     const doctor = new SystemDoctor({
       context: () => ({
@@ -104,7 +119,12 @@ if (!app.requestSingleInstanceLock()) {
       confirm: (method) => confirmInstall(mainWindow, method),
       revalidate: (checks) => doctor.run(checks),
       audit: (action, target, metadata) => audit.record(action, target, metadata),
-      onState: (state) => send(IPC_EVENTS.installerState, state),
+      onState: (state) => {
+        send(IPC_EVENTS.installerState, state);
+        if ((state.status === 'succeeded' || state.status === 'failed') && state.dependency) {
+          notifier.notify('installDone', state.status === 'succeeded' ? 'Instalação concluída' : 'Instalação falhou', `${state.dependency}: ${state.message ?? ''}`.slice(0, 200), `install:${state.methodId}:${Date.now()}`);
+        }
+      },
     });
 
     // Uso dos planos (decisão do usuário): Codex por leitura no App Server; Claude pela statusline oficial.
@@ -125,7 +145,10 @@ if (!app.requestSingleInstanceLock()) {
       emitState: (info) => send(IPC_EVENTS.agentState, info),
       emitData: (agent, data) => send(IPC_EVENTS.terminalData, { agent, data }),
       // Log sanitizado (redact) para diagnosticar encerramentos inesperados das CLIs.
-      onExitDiagnostics: (d) => log.info(`Agente ${d.agent} encerrou`, d),
+      onExitDiagnostics: (d) => {
+        log.info(`Agente ${d.agent} encerrou`, d);
+        if (d.kind === 'agent' && !d.stoppedByUser && d.exitCode !== 0) notifier.notify('agentFailed', `${d.agent === 'claude' ? 'Claude Code' : 'Codex'} encerrou com erro`, `O processo terminou com código ${d.exitCode}.`);
+      },
       onSessionCreated: (id, agent, kind) => {
         const wsId = workspace.currentId();
         if (kind === 'agent' && wsId) sessions.create(id, wsId, agent, 'running');
@@ -139,7 +162,12 @@ if (!app.requestSingleInstanceLock()) {
     const usageService = new UsageService({
       readCodex: () => readCodexUsage({ codexPath: () => detector.locate('codex', settings.getAll().cliPaths.codex).found?.path ?? null, env: () => detector.childEnv() }),
       claude: claudeUsage,
-      emit: (report) => send(IPC_EVENTS.usage, report),
+      emit: (report) => {
+        send(IPC_EVENTS.usage, report);
+        for (const u of [report.claude, report.codex]) for (const w of u.windows) {
+          if (u.status === 'ok' && w.usedPercent >= 90) notifier.notify('usageHigh', `${u.provider === 'claude' ? 'Claude' : 'Codex'}: ${w.usedPercent}% da janela ${w.label}`, w.resetsAt ? `Reinicia em ${new Date(w.resetsAt).toLocaleString()}.` : 'Reinício não informado.', `usage:${u.provider}:${w.windowMinutes}:${w.resetsAt}`);
+        }
+      },
     });
     usage = usageService;
 
@@ -174,6 +202,7 @@ if (!app.requestSingleInstanceLock()) {
       for (const wt of await worktrees.list(w)) if (wt.present && wt.status !== 'removed') stopWatchers.push(watchTree(worktrees.activePath(w, wt.id), notify));
     };
     const worktreesChanged = async () => { await rewatch(); send(IPC_EVENTS.worktreesChanged, {}); };
+    const chatReload = async () => { const ws = wsRef(); if (ws) send(IPC_EVENTS.workspaceChanged, await workspace.info()); };
     const tasks = new TaskScheduler({
       repo: new TaskRepository(db),
       approvals: new ApprovalRepository(db),
@@ -191,6 +220,22 @@ if (!app.requestSingleInstanceLock()) {
       audit: (action, target, metadata) => audit.record(action, target, metadata),
       emit: (task) => send(IPC_EVENTS.taskUpdated, task),
     });
+    async function openWorkspace(path: string): Promise<{ ok: true; value: Awaited<ReturnType<typeof workspace.info>> } | { ok: false; reason: string }> {
+      if (agentService.list().some((a) => a.status === 'running')) return { ok: false, reason: 'Encerre os agentes antes de trocar de workspace.' };
+      try {
+        const info = await workspace.open(path);
+        await worktreesChanged();
+        settings.set('lastWorkspaceId', info.id);
+        send(IPC_EVENTS.workspaceChanged, info);
+        audit.record('workspace.open', info.id, {});
+        void doctor.run(['workspace']);
+        return { ok: true, value: info };
+      } catch (e) {
+        if (e instanceof WorkspaceError) return { ok: false, reason: e.message };
+        throw e;
+      }
+    }
+
     /** Erros esperados (regras de negócio) viram mensagem para o usuário; o resto é erro interno. */
     const expected = <T>(fn: () => T): { ok: true; value: T } | { ok: false; reason: string } => {
       try { return { ok: true, value: fn() }; }
@@ -242,19 +287,12 @@ if (!app.requestSingleInstanceLock()) {
         const r = mainWindow ? await dialog.showOpenDialog(mainWindow, opts) : await dialog.showOpenDialog(opts);
         const chosen = r.filePaths[0];
         if (r.canceled || !chosen) return { ok: true, value: null };
-        if (agentService.list().some((a) => a.status === 'running')) return { ok: false, reason: 'Encerre os agentes antes de trocar de workspace.' };
-        try {
-          const info = await workspace.open(chosen);
-          await worktreesChanged();
-          settings.set('lastWorkspaceId', info.id);
-          send(IPC_EVENTS.workspaceChanged, info);
-          audit.record('workspace.open', info.id, {});
-          void doctor.run(['workspace']);
-          return { ok: true, value: info };
-        } catch (e) {
-          if (e instanceof WorkspaceError) return { ok: false, reason: e.message };
-          throw e;
-        }
+        return openWorkspace(chosen);
+      },
+      [IPC.workspaceOpenRecent]: async ({ id }) => {
+        const row = workspaceRepo.byId(id);
+        if (!row) return { ok: false, reason: 'Workspace não encontrado no histórico.' };
+        return openWorkspace(row.path);
       },
       [IPC.agentsList]: () => agentService.list(),
       [IPC.agentStart]: async ({ agent, kind, cols, rows, permission, worktreeId }) => {
@@ -351,6 +389,49 @@ if (!app.requestSingleInstanceLock()) {
         await worktreesChanged();
         return true;
       }),
+      [IPC.editorRead]: ({ location, rel }) => expectedAsync(() => readTextFile(locationPath(location), rel)),
+      [IPC.editorWrite]: ({ location, rel, content, expectedMtimeMs, overwrite }) => expectedAsync(async () => {
+        const r = await writeTextFile(locationPath(location), rel, content, expectedMtimeMs, overwrite);
+        if (r.status === 'saved') audit.record('file.save', rel, { location: location.kind, overwrite });
+        return r;
+      }),
+      [IPC.historyOverview]: () => { const ws = wsRef(); return ws ? history.overview(ws.id) : null; },
+      [IPC.historySearch]: ({ query, limit }) => { const ws = wsRef(); return ws ? history.search(ws.id, query, limit) : []; },
+      [IPC.historySessions]: () => { const ws = wsRef(); return ws ? history.sessions(ws.id) : []; },
+      [IPC.historyExport]: () => expectedAsync(async () => {
+        const ws = requireWs();
+        const opts: Electron.SaveDialogOptions = { title: 'Exportar histórico', defaultPath: `devfusion-historico-${new Date().toISOString().slice(0, 10)}.json`, filters: [{ name: 'JSON', extensions: ['json'] }] };
+        const r = mainWindow ? await dialog.showSaveDialog(mainWindow, opts) : await dialog.showSaveDialog(opts);
+        if (r.canceled || !r.filePath) return null;
+        await writeFile(r.filePath, JSON.stringify(history.export(ws.id), null, 2), 'utf8');
+        audit.record('history.export', ws.id, {});
+        return detector.shortenHome(r.filePath);
+      }),
+      [IPC.historyDelete]: () => expectedAsync(async () => {
+        const ws = requireWs();
+        const o = history.overview(ws.id);
+        const ok = await confirmNative(mainWindow, 'Apagar histórico', 'Apagar o histórico deste workspace?', [
+          `Serão apagadas ${o.messages} mensagem(ns) do chat, as sessões encerradas e as tarefas já concluídas (aprovadas, rejeitadas ou canceladas).`,
+          'Tarefas em andamento, worktrees, arquivos do projeto e o registro de auditoria são mantidos.',
+          'Não é possível desfazer. Se quiser guardar uma cópia, use "Exportar" antes.',
+        ], 'Apagar');
+        if (!ok) return null;
+        const counts = history.deleteWorkspaceHistory(ws.id);
+        audit.record('history.delete', ws.id, counts);
+        void chatReload();
+        return counts;
+      }),
+      [IPC.dashboardGet]: () => {
+        const ws = wsRef();
+        const tasksByStatus: Record<string, number> = {};
+        if (ws) for (const r of db!.prepare('SELECT status, COUNT(*) AS n FROM tasks WHERE workspace_id = ? GROUP BY status').all(ws.id) as Array<{ status: string; n: number }>) tasksByStatus[r.status] = r.n;
+        return {
+          recent: workspaceRepo.recent(8).map((w) => ({ id: w.id, name: w.name, displayPath: detector.shortenHome(w.path), lastOpenedAt: w.last_opened_at ?? null, available: existsSync(w.path) })),
+          tasksByStatus,
+          worktreesActive: ws ? (db!.prepare("SELECT COUNT(*) AS n FROM worktrees WHERE workspace_id = ? AND status = 'active'").get(ws.id) as { n: number }).n : 0,
+          history: ws ? history.overview(ws.id) : null,
+        };
+      },
       [IPC.worktreesOpenFolder]: ({ id }) => expectedAsync(async () => {
         const err = await shell.openPath(worktrees.activePath(requireWs(), id));
         if (err) throw new GitOpError(err);

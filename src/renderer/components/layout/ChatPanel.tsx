@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AGENT_NAMES, type AgentId } from '@shared/agents';
-import type { ChatMessage, ChatTarget } from '@shared/orchestration';
+import { applyChatMode, type ChatMessage, type ChatMode, type ChatTarget } from '@shared/orchestration';
+import { useAppStore } from '../../stores/appStore';
 import { useAgentStore } from '../../stores/agentStore';
 import { useChatStore } from '../../stores/chatStore';
 import { focusTerminal } from '../agents/TerminalView';
@@ -37,6 +38,9 @@ export function ChatPanel() {
   const stopAll = useAgentStore((s) => s.stopAll);
   const [text, setText] = useState('');
   const [to, setTo] = useState<ChatTarget>('claude');
+  const [mode, setMode] = useState<ChatMode>('manual');
+  const setView = useAppStore((s) => s.setView);
+  const effectiveTo: ChatTarget = mode === 'manual' ? to : 'both';
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const listRef = useRef<HTMLUListElement>(null);
@@ -46,12 +50,12 @@ export function ChatPanel() {
     if (!text.trim() || busy) return;
     setBusy(true);
     const sent = text;
-    const r = await send(to, sent);
+    const r = await send(effectiveTo, applyChatMode(mode, sent));
     setBusy(false);
     if (!r.ok) { setFeedback({ kind: 'error', text: r.reason }); return; }
     // Só limpa se o usuário não digitou outra coisa enquanto enviava.
     setText((current) => (current === sent ? '' : current));
-    const targets: AgentId[] = to === 'both' ? ['claude', 'codex'] : [to];
+    const targets: AgentId[] = effectiveTo === 'both' ? ['claude', 'codex'] : [effectiveTo];
     setFeedback({ kind: 'ok', text: `Colado no terminal de ${targets.map((t) => AGENT_NAMES[t]).join(' e ')}. Revise e pressione Enter no terminal para enviar.` });
     focusTerminal(targets[0]!);
   };
@@ -66,6 +70,7 @@ export function ChatPanel() {
         {messages.length === 0 && <li className="p-3 text-muted" data-testid="chat-empty">Nenhuma mensagem.</li>}
         {messages.map((m) => <MessageItem key={m.id} m={m} />)}
       </ul>
+      {mode !== 'manual' && text.trim() && <p className="border-t border-border px-3 py-1 text-xs whitespace-pre-wrap text-muted" data-testid="chat-mode-preview">Será colado nos dois terminais: {applyChatMode(mode, text).slice(0, 220)}{applyChatMode(mode, text).length > 220 ? '…' : ''}</p>}
       {feedback && <p role={feedback.kind === 'error' ? 'alert' : 'status'} className={`border-t border-border px-3 py-1 text-xs ${feedback.kind === 'error' ? 'text-warn' : 'text-muted'}`} data-testid="chat-feedback">{feedback.text}</p>}
       <form className="flex shrink-0 gap-2 border-t border-border p-2" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         <label className="sr-only" htmlFor="chat-input">Mensagem</label>
@@ -74,9 +79,26 @@ export function ChatPanel() {
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void submit(); } }}
           placeholder={workspace ? 'Mensagem para os agentes (Ctrl/⌘+Enter para colar no terminal)' : 'Escolha um workspace para usar o chat.'}
           className="min-h-0 flex-1 resize-none rounded border border-border bg-bg px-2 py-1 disabled:opacity-60" data-testid="chat-input" />
+        <label className="sr-only" htmlFor="chat-mode">Modo</label>
+        <select id="chat-mode" value={mode} disabled={!workspace} data-testid="chat-mode" className="w-40 shrink-0 rounded border border-border bg-bg px-2 disabled:opacity-60"
+          title="Modos suportados sem automação: o app só prepara o texto; você envia com Enter em cada terminal."
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === 'review' || v === 'pipeline') { setView('tasks'); return; }
+            if (v === 'parallel') { setView('git'); return; }
+            setMode(v as ChatMode);
+          }}>
+          <option value="manual">Manual</option>
+          <option value="debate">Debate (ambos)</option>
+          <option value="debug">Debug (ambos)</option>
+          <option value="review">Revisão → Tarefas</option>
+          <option value="pipeline">Pipeline → Tarefas</option>
+          <option value="parallel">Paralelo → Git</option>
+          <option value="autonomous" disabled title="Exige automação, que está bloqueada (Claude) ou desativada (Codex)">Autônomo (indisponível)</option>
+        </select>
         <label className="sr-only" htmlFor="chat-target">Destino</label>
-        <select id="chat-target" value={to} onChange={(e) => setTo(e.target.value as ChatTarget)} disabled={!workspace}
-          className="rounded border border-border bg-bg px-2 disabled:opacity-60" data-testid="chat-target">
+        <select id="chat-target" value={effectiveTo} onChange={(e) => setTo(e.target.value as ChatTarget)} disabled={!workspace || mode !== 'manual'}
+          className="w-32 shrink-0 rounded border border-border bg-bg px-2 disabled:opacity-60" data-testid="chat-target">
           <option value="claude">Claude Code</option>
           <option value="codex">Codex</option>
           <option value="both">Ambos</option>

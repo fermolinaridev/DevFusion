@@ -24,6 +24,7 @@ export class WorkspaceManager {
   async open(rawPath: string): Promise<WorkspaceInfo> {
     const real = await validateWorkspacePath(rawPath);
     const row = this.repo.upsert(real, basename(real) || real);
+    this.repo.touch(row.id);
     this.current = { id: row.id, path: row.path, name: row.name };
     return this.info();
   }

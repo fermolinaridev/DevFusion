@@ -1,6 +1,9 @@
 import { useAppStore, type NavView } from '../../stores/appStore';
 
-const ITEMS: Array<{ id: NavView; label: string; glyph: string }> = [
+const MOD = navigator.userAgent.includes('Mac') ? '⌘' : 'Ctrl';
+
+export const NAV_ITEMS: Array<{ id: NavView; label: string; glyph: string }> = [
+  { id: 'dashboard', label: 'Dashboard', glyph: '⌂' },
   { id: 'explorer', label: 'Explorer', glyph: '▤' },
   { id: 'agents', label: 'System Doctor', glyph: '◎' },
   { id: 'tasks', label: 'Tarefas', glyph: '☰' },
@@ -15,13 +18,13 @@ export function Sidebar() {
   const setView = useAppStore((s) => s.setView);
   return (
     <nav aria-label="Navegação principal" className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-surface py-2">
-      {ITEMS.map((item) => {
+      {NAV_ITEMS.map((item, i) => {
         const active = view === item.id;
         return (
           <button
             key={item.id}
             type="button"
-            title={item.label}
+            title={`${item.label} (${MOD}+${i + 1})`}
             aria-label={item.label}
             aria-current={active ? 'page' : undefined}
             onClick={() => setView(item.id)}

@@ -38,6 +38,7 @@ const api: DevFusionApi = Object.freeze({
     get: () => ipcRenderer.invoke(IPC.workspaceGet),
     choose: () => ipcRenderer.invoke(IPC.workspaceChoose),
     onChanged: (cb: (i: never) => void) => subscribe(IPC_EVENTS.workspaceChanged, cb),
+    openRecent: (id: unknown) => ipcRenderer.invoke(IPC.workspaceOpenRecent, { id }),
   }),
   agents: Object.freeze({
     list: () => ipcRenderer.invoke(IPC.agentsList),
@@ -90,6 +91,20 @@ const api: DevFusionApi = Object.freeze({
     remove: (id: unknown, deleteBranch: unknown) => ipcRenderer.invoke(IPC.worktreesRemove, { id, deleteBranch }),
     openFolder: (id: unknown) => ipcRenderer.invoke(IPC.worktreesOpenFolder, { id }),
     onChanged: (cb: () => void) => subscribe(IPC_EVENTS.worktreesChanged, cb),
+  }),
+  editor: Object.freeze({
+    read: (location: unknown, rel: unknown) => ipcRenderer.invoke(IPC.editorRead, { location, rel }),
+    write: (location: unknown, rel: unknown, content: unknown, expectedMtimeMs: unknown, overwrite: unknown) => ipcRenderer.invoke(IPC.editorWrite, { location, rel, content, expectedMtimeMs, overwrite }),
+  }),
+  history: Object.freeze({
+    overview: () => ipcRenderer.invoke(IPC.historyOverview),
+    search: (query: unknown, limit: unknown) => ipcRenderer.invoke(IPC.historySearch, { query, limit }),
+    sessions: () => ipcRenderer.invoke(IPC.historySessions),
+    exportToFile: () => ipcRenderer.invoke(IPC.historyExport),
+    deleteAll: () => ipcRenderer.invoke(IPC.historyDelete),
+  }),
+  dashboard: Object.freeze({
+    get: () => ipcRenderer.invoke(IPC.dashboardGet),
   }),
 } as DevFusionApi);
 

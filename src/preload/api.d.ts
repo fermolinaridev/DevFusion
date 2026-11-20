@@ -5,6 +5,7 @@ import type { ChatMessage, ChatTarget, OutboundPreview, PermissionPreset, Task, 
 import type { Settings } from '../shared/settings';
 import type { UsageReport } from '../shared/usage';
 import type { ExplorerEntry, GitFileStatus, GitLocation, MergeCheck, RepoStatus, WorktreeInfo } from '../shared/git';
+import type { DashboardData, HistoryOverview, SessionRecord } from '../shared/history';
 
 export interface DevFusionApi {
   app: {
@@ -35,6 +36,7 @@ export interface DevFusionApi {
   workspace: {
     get(): Promise<IpcResult<WorkspaceInfo | null>>;
     onChanged(cb: (info: WorkspaceInfo | null) => void): () => void;
+    openRecent(id: string): Promise<IpcResult<ActionResult<WorkspaceInfo>>>;
     /** Abre o seletor nativo de pasta no main. */
     choose(): Promise<IpcResult<ActionResult<WorkspaceInfo | null>>>;
   };
@@ -90,6 +92,20 @@ export interface DevFusionApi {
     remove(id: string, deleteBranch: boolean): Promise<IpcResult<ActionResult<boolean>>>;
     openFolder(id: string): Promise<IpcResult<ActionResult<boolean>>>;
     onChanged(cb: () => void): () => void;
+  };
+  editor: {
+    read(location: GitLocation, rel: string): Promise<IpcResult<ActionResult<{ content: string; mtimeMs: number; size: number }>>>;
+    write(location: GitLocation, rel: string, content: string, expectedMtimeMs: number, overwrite: boolean): Promise<IpcResult<ActionResult<{ status: 'saved'; mtimeMs: number } | { status: 'conflict'; diskMtimeMs: number }>>>;
+  };
+  history: {
+    overview(): Promise<IpcResult<HistoryOverview | null>>;
+    search(query: string, limit: number): Promise<IpcResult<ChatMessage[]>>;
+    sessions(): Promise<IpcResult<SessionRecord[]>>;
+    exportToFile(): Promise<IpcResult<ActionResult<string | null>>>;
+    deleteAll(): Promise<IpcResult<ActionResult<{ messages: number; sessions: number; tasks: number } | null>>>;
+  };
+  dashboard: {
+    get(): Promise<IpcResult<DashboardData>>;
   };
 }
 

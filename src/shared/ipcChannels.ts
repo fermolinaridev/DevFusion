@@ -44,6 +44,15 @@ export const IPC = {
   worktreesRevert: 'worktrees:revert',
   worktreesRemove: 'worktrees:remove',
   worktreesOpenFolder: 'worktrees:open-folder',
+  editorRead: 'editor:read',
+  editorWrite: 'editor:write',
+  historyOverview: 'history:overview',
+  historySearch: 'history:search',
+  historySessions: 'history:sessions',
+  historyExport: 'history:export',
+  historyDelete: 'history:delete',
+  dashboardGet: 'dashboard:get',
+  workspaceOpenRecent: 'workspace:open-recent',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

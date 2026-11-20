@@ -3,7 +3,7 @@ import type { AppInfo } from '@shared/ipcContracts';
 import { DEFAULT_SETTINGS, type Settings } from '@shared/settings';
 import { unwrap } from '../lib/ipc';
 
-export type NavView = 'explorer' | 'agents' | 'tasks' | 'usage' | 'git' | 'sessions' | 'settings';
+export type NavView = 'dashboard' | 'explorer' | 'agents' | 'tasks' | 'usage' | 'git' | 'sessions' | 'settings';
 
 interface AppState {
   status: 'loading' | 'ready' | 'error';
@@ -23,7 +23,7 @@ export const useAppStore = create<AppState>((set) => ({
   error: null,
   info: null,
   settings: DEFAULT_SETTINGS,
-  view: 'agents',
+  view: 'dashboard',
   async load() {
     try {
       const [info, settings] = await Promise.all([unwrap(window.devfusion.app.getInfo()), unwrap(window.devfusion.settings.getAll())]);

@@ -17,7 +17,9 @@ import type { UsageReport } from './usage';
 import {
   ExplorerDiffArgsSchema, ExplorerListArgsSchema, GitStatusArgsSchema, WorktreeCommitArgsSchema, WorktreeCreateArgsSchema, WorktreeIdArgsSchema, WorktreeRemoveArgsSchema,
   type ExplorerEntry, type GitFileStatus, type GitLocation, type MergeCheck, type RepoStatus, type WorktreeInfo,
+  EditorReadArgsSchema, EditorWriteArgsSchema,
 } from './git';
+import { HistorySearchArgsSchema, OpenRecentArgsSchema, type DashboardData, type HistoryOverview, type SessionRecord } from './history';
 
 /** Envelope de resposta: erros viajam como dados, sem stack nem detalhes internos. */
 export type IpcErrorCode = 'INVALID_ARGUMENT' | 'FORBIDDEN_SENDER' | 'INTERNAL';
@@ -90,6 +92,15 @@ export const IPC_ARG_SCHEMAS = {
   [IPC.worktreesRevert]: WorktreeIdArgsSchema,
   [IPC.worktreesRemove]: WorktreeRemoveArgsSchema,
   [IPC.worktreesOpenFolder]: WorktreeIdArgsSchema,
+  [IPC.editorRead]: EditorReadArgsSchema,
+  [IPC.editorWrite]: EditorWriteArgsSchema,
+  [IPC.historyOverview]: z.undefined(),
+  [IPC.historySearch]: HistorySearchArgsSchema,
+  [IPC.historySessions]: z.undefined(),
+  [IPC.historyExport]: z.undefined(),
+  [IPC.historyDelete]: z.undefined(),
+  [IPC.dashboardGet]: z.undefined(),
+  [IPC.workspaceOpenRecent]: OpenRecentArgsSchema,
 } as const;
 
 /** Resultado de ações que podem falhar por motivo esperado (mensagem para o usuário). */
@@ -141,4 +152,15 @@ export interface IpcHandlers {
   [IPC.worktreesRevert]: (arg: { id: string }) => Promise<ActionResult<WorktreeInfo | null>>;
   [IPC.worktreesRemove]: (arg: { id: string; deleteBranch: boolean }) => Promise<ActionResult<boolean>>;
   [IPC.worktreesOpenFolder]: (arg: { id: string }) => Promise<ActionResult<boolean>>;
+  [IPC.editorRead]: (arg: { location: GitLocation; rel: string }) => Promise<ActionResult<{ content: string; mtimeMs: number; size: number }>>;
+  [IPC.editorWrite]: (arg: { location: GitLocation; rel: string; content: string; expectedMtimeMs: number; overwrite: boolean }) => Promise<ActionResult<{ status: 'saved'; mtimeMs: number } | { status: 'conflict'; diskMtimeMs: number }>>;
+  [IPC.historyOverview]: () => HistoryOverview | null;
+  [IPC.historySearch]: (arg: { query: string; limit: number }) => ChatMessage[];
+  [IPC.historySessions]: () => SessionRecord[];
+  /** Abre o diálogo nativo de salvar; `value: null` = cancelado. */
+  [IPC.historyExport]: () => Promise<ActionResult<string | null>>;
+  /** Confirmação nativa; `value: null` = cancelado. */
+  [IPC.historyDelete]: () => Promise<ActionResult<{ messages: number; sessions: number; tasks: number } | null>>;
+  [IPC.dashboardGet]: () => DashboardData;
+  [IPC.workspaceOpenRecent]: (arg: { id: string }) => Promise<ActionResult<WorkspaceInfo>>;
 }
