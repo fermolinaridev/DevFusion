@@ -1,6 +1,6 @@
 # Fase 8 — Distribuição
 
-Status: **implementada; app empacotado testado em macOS, Windows e Linux (CI); instaladores Windows/Linux aguardam a primeira tag** (versão `0.3.0-beta.1`) · Pré-requisito: Fase 7 concluída com CI verde no Windows e no Linux ([17-FASE7-ESTABILIDADE.md](17-FASE7-ESTABILIDADE.md)).
+Status: **concluída** — instaladores gerados e testados nas três plataformas pelo workflow de release (tag `v0.3.0-beta.1`, execução 44859491674) (versão `0.3.0-beta.1`) · Pré-requisito: Fase 7 concluída com CI verde no Windows e no Linux ([17-FASE7-ESTABILIDADE.md](17-FASE7-ESTABILIDADE.md)).
 Roadmap: "Instalador Windows, depois macOS/Linux após testes específicos. README, manual, documentação, GitHub Releases e atualizações verificadas." Referência: [08-SEGURANCA.md](08-SEGURANCA.md) § Distribuição.
 
 ## Inspeção do repositório (início da fase)
@@ -46,13 +46,13 @@ Roadmap: "Instalador Windows, depois macOS/Linux após testes específicos. READ
 
 | # | Status | Evidência |
 |---|---|---|
-| D1 | ⏳ | `release.yml`: instala o NSIS em silêncio num runner Windows limpo, roda o teste do app instalado e desinstala conferindo arquivo e processo. Roda na primeira tag `v*`. |
+| D1 | ✅ | `release.yml` na tag `v0.3.0-beta.1`: NSIS instalado em silêncio num runner Windows limpo (por usuário, sem administrador), teste do app **instalado** aprovado, desinstalação sem executável nem processo restante. |
 | D2 | ✅ | `tests/package/packaged.spec.ts` (Playwright pela porta de depuração do Chromium, perfil isolado por `--user-data-dir`): Doctor com `pty`/`app-data` ok, renderer sem Node, CSP, variáveis `DEVFUSION_*` ignoradas. Passou no app arm64 e nos dois `.dmg` montados (arm64 e x64 via Rosetta). No CI (commit `89f0c6b`), o app empacotado também passou no mesmo teste no **Windows** e no **Linux**. |
 | D3 | ✅ | Mesmo teste lê as Fuses do binário (`@electron/fuses`) e confirma que `ELECTRON_RUN_AS_NODE=1` não executa código como Node. |
 | D4 | ✅ | Teste lê o índice do asar: só `out/`, `package.json`, `node-pty` e `zod`; nenhum `.env`, mapa, `.pdb`, teste, fonte TS, `poc/` ou docs; binário nativo só da plataforma empacotada. |
-| D5 | ⏳ | `release.yml` cria release **rascunho** com `SHA256SUMS.txt` e notas do CHANGELOG; tag precisa bater com o `package.json`. Ainda não executado. |
+| D5 | ✅ | Release **rascunho** criada com instaladores, `SHA256SUMS.txt` e notas do CHANGELOG; versão da tag conferida com o `package.json`. A publicação é feita pelo usuário. |
 | D6 | ✅ | `UpdateChecker`: SemVer com pré-releases, rascunhos ignorados, URL aceita só do repositório oficial e da mesma tag, timeout, uma vez por dia, desligável. Unitários + E2E com servidor local (inclui release maliciosa recusada). |
-| D7 | ✅ macOS · ⏳ Linux | `.dmg` arm64/x64 verificados (`hdiutil verify`) e testados; Linux: `.deb` instalado/removido e AppImage extraído testados no `release.yml`. |
+| D7 | ✅ | `.dmg` arm64/x64 verificados e testados (local e no CI de release); Linux: `.deb` instalado, testado e removido, AppImage extraído e testado no `release.yml`. Homologação em máquinas reais ainda pendente (beta). |
 | D8 | ✅ | [MANUAL.md](MANUAL.md), README, CHANGELOG, este documento e [19-AI-MEMORY.md](19-AI-MEMORY.md). |
 
 Totais locais: **136 testes unitários**, **42 E2E** e **3 testes do app empacotado**.
@@ -70,7 +70,7 @@ Totais locais: **136 testes unitários**, **42 E2E** e **3 testes do app empacot
 
 ## Limitações
 - **Sem assinatura de código**: SmartScreen (Windows) e Gatekeeper (macOS) avisam na primeira abertura; o manual explica como conferir o SHA-256 e abrir.
-- Instalador Windows, `.deb` e AppImage só foram exercitados pelo CI (ainda não executado), sem teste manual em máquina real.
+- Instalador Windows, `.deb` e AppImage exercitados só pelo CI (runners limpos), sem teste manual em máquina real.
 - `npm audit`: 6 alertas **moderados** no `minimatch` (ReDoS) dentro do electron-builder, ferramenta de build que não entra no app e só processa padrões escritos por nós; aceito até o electron-builder atualizar.
 - O renderer continua carregado de `file://` (a Fuse `grantFileProtocolExtraPrivileges` fica ligada); migrar para protocolo próprio é melhoria futura.
 - Sem atualização automática (decisão do usuário).
