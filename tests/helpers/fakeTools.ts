@@ -15,6 +15,8 @@ export interface FakeResponse {
   interactive?: { banner?: string; ignoreSigint?: boolean; ignoreSigterm?: boolean; noBracketedPaste?: boolean; mouseTracking?: boolean };
   /** Servidor JSON-RPC por stdio (simula o App Server): resposta por método e log dos métodos recebidos. */
   jsonrpc?: { results: Record<string, unknown>; errors?: Record<string, string>; logFile?: string; silent?: boolean };
+  /** Simula `ai-memory run`: registra o argv e executa o `--executable` com os argumentos nativos. */
+  wrapRun?: { logFile: string };
 }
 export type FakeToolSpec = Record<string, FakeResponse> & { '*'?: FakeResponse };
 
@@ -66,7 +68,7 @@ const key = argv.join(' ');
 // O DevFusion acrescenta "--settings <json>" (statusline de uso) às sessões do Claude.
 const si = argv.indexOf('--settings');
 const keyNoSettings = si >= 0 ? argv.filter((_, i) => i !== si && i !== si + 1).join(' ') : key;
-const r = spec[key] || spec[keyNoSettings] || spec['*'] || { stderr: 'unknown command: ' + key, exitCode: 2 };
+const r = (argv[0] === 'run' && spec['run'] && spec['run'].wrapRun ? spec['run'] : null) || spec[key] || spec[keyNoSettings] || spec['*'] || { stderr: 'unknown command: ' + key, exitCode: 2 };
 function create(name, s) {
   fs.writeFileSync(path.join(specsDir, name + '.json'), JSON.stringify(s));
   const js = path.join(specsDir, name + '.cjs');
@@ -79,7 +81,16 @@ function create(name, s) {
     fs.chmodSync(l, 0o755);
   }
 }
-if (r.jsonrpc) {
+if (r.wrapRun) {
+  // ai-memory run [flags do wrapper] <agente> [args nativos]: flags do wrapper antes do agente.
+  fs.writeFileSync(r.wrapRun.logFile, JSON.stringify(argv));
+  let i = 1, exe = null;
+  while (i < argv.length && argv[i].startsWith('--')) { if (argv[i] === '--executable') { exe = argv[i + 1]; i += 2; } else i += 1; }
+  const native = argv.slice(i + 1);
+  const child = require('child_process').spawn(exe, native, { stdio: 'inherit', shell: process.platform === 'win32' });
+  child.on('exit', (code, sig) => process.exit(sig ? 1 : (code ?? 0)));
+  for (const s of ['SIGINT', 'SIGTERM']) process.on(s, () => { try { child.kill(s); } catch {} });
+} else if (r.jsonrpc) {
   const rpc = r.jsonrpc;
   let jb = '';
   process.stdin.setEncoding('utf8');

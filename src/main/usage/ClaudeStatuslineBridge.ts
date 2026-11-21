@@ -86,7 +86,9 @@ export class ClaudeStatuslineBridge {
       note: 'Inicie o Claude no DevFusion e envie uma mensagem: os números chegam pela statusline oficial depois da primeira resposta.', extras: {},
     };
     let raw: string;
-    try { raw = readFileSync(this.dataPath, 'utf8'); } catch { return base; }
+    try { raw = readFileSync(this.dataPath, 'utf8'); } catch {
+      return this.runtime() ? base : { ...base, status: 'unavailable', note: 'Para ver o uso do Claude, instale o Node.js: o DevFusion usa o Node para executar a statusline oficial do Claude Code. Depois, reinicie a sessão do Claude.' };
+    }
     let json: unknown;
     try { json = JSON.parse(raw); } catch { return { ...base, status: 'error', note: 'Arquivo de uso do Claude ilegível; será substituído na próxima atualização.' }; }
     const parsed = FileSchema.safeParse(json);

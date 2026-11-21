@@ -55,6 +55,9 @@ export const IPC = {
   workspaceOpenRecent: 'workspace:open-recent',
   diagnosticsExport: 'diagnostics:export',
   logsOpenFolder: 'logs:open-folder',
+  updatesGet: 'updates:get',
+  updatesCheck: 'updates:check',
+  updatesOpenRelease: 'updates:open-release',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -72,5 +75,6 @@ export const IPC_EVENTS = {
   usage: 'event:usage',
   fsChanged: 'event:fs-changed',
   worktreesChanged: 'event:worktrees-changed',
+  updates: 'event:updates',
 } as const;
 export type IpcEvent = (typeof IPC_EVENTS)[keyof typeof IPC_EVENTS];

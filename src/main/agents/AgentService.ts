@@ -8,7 +8,7 @@ import { CliAgentAdapter, type CliAgentDeps } from './CliAgentAdapter';
 import { CLAUDE_CONFIG } from './ClaudeCodeAdapter';
 import { CODEX_CONFIG } from './CodexAdapter';
 
-export interface AgentServiceDeps extends Omit<CliAgentDeps, 'terminals' | 'configuredPath' | 'onChange' | 'extraAgentArgs'> {
+export interface AgentServiceDeps extends Omit<CliAgentDeps, 'terminals' | 'configuredPath' | 'onChange' | 'extraAgentArgs' | 'wrapAgentLaunch'> {
   ptyFactory: PtyFactory;
   terminalOptions?: TerminalOptions;
   configuredPaths: () => Record<AgentId, string | null>;
@@ -17,6 +17,8 @@ export interface AgentServiceDeps extends Omit<CliAgentDeps, 'terminals' | 'conf
   emitState: (info: AgentSessionInfo) => void;
   emitData: (agent: AgentId, data: string) => void;
   extraAgentArgs?: Partial<Record<AgentId, () => string[]>>;
+  /** Embrulho opcional do lançamento de sessões de agente (integração ai-memory). */
+  wrapAgentLaunch?: (agent: AgentId, exe: string, args: string[]) => { file: string; args: string[]; display: string[] } | null;
   /** Diagnóstico: chamado quando um processo de agente termina, com o fim da tela. */
   onExitDiagnostics?: (d: { agent: AgentId; kind: SessionKind; exitCode: number; signal: number | null; durationMs: number | null; stoppedByUser: boolean; screenTail: string }) => void;
 }
@@ -57,6 +59,7 @@ export class AgentService {
       terminals: this.terminals,
       configuredPath: () => deps.configuredPaths()[cfg.id],
       extraAgentArgs: deps.extraAgentArgs?.[cfg.id],
+      wrapAgentLaunch: deps.wrapAgentLaunch ? (exe, args) => deps.wrapAgentLaunch!(cfg.id, exe, args) : undefined,
       onChange: deps.emitState,
       onSessionEnded: (id, status, kind) => {
         deps.onSessionEnded?.(id, status, kind);

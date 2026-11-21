@@ -1,0 +1,163 @@
+name: Release
+
+# Instaladores do DevFusion (Fase 8). Uma tag `v*` gera os instaladores nas três plataformas,
+# testa o app empacotado/instalado e cria uma release em RASCUNHO com SHA256SUMS.txt.
+# Quem publica a release é o usuário, na página do GitHub. Sem assinatura de código (beta).
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win
+          - os: macos-latest
+            target: --mac
+          - os: ubuntu-latest
+            target: --linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Versão da tag confere com o package.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          [ "v$v" = "${GITHUB_REF_NAME}" ] || { echo "::error::Tag ${GITHUB_REF_NAME} diferente da versão v$v do package.json"; exit 1; }
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Typecheck e testes unitários
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Gerar instaladores
+        run: npx electron-builder ${{ matrix.target }} --publish never
+
+      # ---------------------------------------------------------------- Windows
+      - name: Instalar (NSIS silencioso, por usuário)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem release -Filter 'DevFusion-*-win-x64.exe' | Select-Object -First 1
+          Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait
+          $exe = (Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Programs') -Recurse -Filter 'DevFusion.exe' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $exe) { throw 'App não encontrado em %LOCALAPPDATA%\Programs' }
+          "DEVFUSION_PACKAGED_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Teste do app instalado (Windows)
+        if: runner.os == 'Windows'
+        run: npm run test:package -- --reporter=list,github
+
+      - name: Desinstalar e conferir
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dir = Split-Path $env:DEVFUSION_PACKAGED_EXE
+          Start-Process -FilePath (Join-Path $dir 'Uninstall DevFusion.exe') -ArgumentList '/S' -Wait
+          Start-Sleep -Seconds 5
+          if (Test-Path (Join-Path $dir 'DevFusion.exe')) { throw 'Executável ainda presente após desinstalar' }
+          if (Get-Process -Name DevFusion -ErrorAction SilentlyContinue) { throw 'Processo DevFusion ainda em execução' }
+
+      # ---------------------------------------------------------------- macOS
+      - name: Teste do app empacotado (macOS arm64)
+        if: runner.os == 'macOS'
+        run: npm run test:package -- --reporter=list,github
+        env:
+          DEVFUSION_PACKAGED_EXE: ${{ github.workspace }}/release/mac-arm64/DevFusion.app/Contents/MacOS/DevFusion
+
+      # ---------------------------------------------------------------- Linux
+      - name: Preparar sandbox do Electron (Linux)
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Instalar o .deb e testar o app instalado
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y ./release/DevFusion-*-linux-*.deb
+          DEVFUSION_PACKAGED_EXE=/opt/DevFusion/devfusion xvfb-run --auto-servernum npm run test:package -- --reporter=list,github
+          sudo apt-get remove -y devfusion
+          test ! -e /opt/DevFusion/devfusion
+
+      - name: Teste do AppImage (extraído)
+        if: runner.os == 'Linux'
+        run: |
+          cd release && ./DevFusion-*-linux-*.AppImage --appimage-extract >/dev/null && cd ..
+          DEVFUSION_PACKAGED_EXE=$PWD/release/squashfs-root/devfusion xvfb-run --auto-servernum npm run test:package -- --reporter=list,github
+
+      # ---------------------------------------------------------------- artefatos
+      - name: Guardar instaladores
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ runner.os }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+            release/*.deb
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Guardar resultados em caso de falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-test-results-${{ runner.os }}
+          path: test-results/
+          retention-days: 7
+
+  draft-release:
+    name: Release rascunho
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installers-*
+          path: dist
+          merge-multiple: true
+
+      - name: SHA256SUMS.txt
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Criar release em rascunho (o usuário publica)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pre=""; case "$GITHUB_REF_NAME" in *-*) pre="--prerelease";; esac
+          notes=$(awk -v v="${GITHUB_REF_NAME#v}" '$0 ~ "^## "v {f=1; next} /^## / && f {exit} f' CHANGELOG.md)
+          printf '%s\n\n%s\n' "$notes" "Instaladores sem assinatura de código (beta). Confira o SHA-256 em SHA256SUMS.txt antes de instalar; veja docs/MANUAL.md." > notes.md
+          gh release create "$GITHUB_REF_NAME" dist/* --draft $pre --title "DevFusion ${GITHUB_REF_NAME}" --notes-file notes.md

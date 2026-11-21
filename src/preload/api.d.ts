@@ -6,6 +6,7 @@ import type { Settings } from '../shared/settings';
 import type { UsageReport } from '../shared/usage';
 import type { ExplorerEntry, GitFileStatus, GitLocation, MergeCheck, RepoStatus, WorktreeInfo } from '../shared/git';
 import type { DashboardData, HistoryOverview, SessionRecord } from '../shared/history';
+import type { UpdateStatus } from '../shared/updates';
 
 export interface DevFusionApi {
   app: {
@@ -110,6 +111,13 @@ export interface DevFusionApi {
   diagnostics: {
     exportToFile(): Promise<IpcResult<ActionResult<string | null>>>;
     openLogsFolder(): Promise<IpcResult<boolean>>;
+  };
+  /** Aviso de nova versão (só leitura do GitHub Releases; nada é baixado). */
+  updates: {
+    get(): Promise<IpcResult<UpdateStatus>>;
+    check(): Promise<IpcResult<UpdateStatus>>;
+    openRelease(): Promise<IpcResult<boolean>>;
+    onChanged(cb: (s: UpdateStatus) => void): () => void;
   };
 }
 

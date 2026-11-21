@@ -29,6 +29,10 @@ export const SETTINGS_SCHEMA = {
   historyRetentionDays: z.number().int().min(0).max(3650),
   /** Notificações do sistema (só com a janela em segundo plano). */
   notifications: z.object({ agentFailed: z.boolean(), installDone: z.boolean(), usageHigh: z.boolean() }).strict(),
+  /** Consultar o GitHub Releases para avisar de nova versão (nunca baixa nem instala). */
+  updateCheck: z.boolean(),
+  /** Integração opcional com o ai-memory: iniciar Claude e Codex via `ai-memory run`. */
+  aiMemory: z.object({ runAgents: z.boolean() }).strict(),
 } as const;
 
 export type SettingKey = keyof typeof SETTINGS_SCHEMA;
@@ -43,6 +47,8 @@ export const DEFAULT_SETTINGS: Settings = {
   terminalFontSize: 13,
   historyRetentionDays: 0,
   notifications: { agentFailed: true, installDone: true, usageHigh: true },
+  updateCheck: true,
+  aiMemory: { runAgents: false },
 };
 
 export const SETTING_KEYS = Object.keys(SETTINGS_SCHEMA) as SettingKey[];

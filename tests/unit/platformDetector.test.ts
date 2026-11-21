@@ -56,6 +56,7 @@ describe('PlatformDetector (Windows, sem executar)', () => {
       'C:\\Users\\u\\AppData\\Local\\Microsoft\\WinGet\\Links',
       'C:\\Program Files\\Git\\cmd',
       'C:\\Program Files\\nodejs',
+      'C:\\Users\\u\\AppData\\Local\\Programs\\ai-memory',
     ]);
     expect(d.childEnv()['PATH']!.split(';')[0]).toBe('C:\\Windows');
   });

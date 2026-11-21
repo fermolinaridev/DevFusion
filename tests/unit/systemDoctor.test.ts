@@ -27,6 +27,7 @@ function ctx(over: Partial<CheckContext> = {}): CheckContext {
     freeDiskBytes: async () => 50 * GiB,
     connect: async (): Promise<ConnectResult> => ({ ok: true, ms: 12 }),
     connectivityTargets: { anthropic: { host: 'a.test', port: 443 }, openai: { host: 'o.test', port: 443 } },
+    ptyProbe: async () => ({ ok: true, ms: 5 }),
     ...over,
   };
 }

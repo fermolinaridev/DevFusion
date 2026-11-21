@@ -25,6 +25,7 @@ const RELATED_CHECKS: Record<InstallableDependency, CheckId[]> = {
   claude: ['claude', 'claude-auth'],
   codex: ['codex', 'codex-auth'],
   node: ['node', 'npm'],
+  'ai-memory': ['ai-memory'],
 };
 
 export class DependencyInstaller {

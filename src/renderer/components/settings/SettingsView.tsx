@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import type { Settings } from '@shared/settings';
 import { useAppStore } from '../../stores/appStore';
+import { useUpdateStore } from '../../stores/updateStore';
+import { useDoctorStore } from '../../stores/doctorStore';
+import { InstallDialog } from '../system-doctor/InstallDialog';
 import { Button } from '../ui/Modal';
 
 const THEMES: Array<{ value: Settings['theme']; label: string }> = [
@@ -36,6 +39,8 @@ export function SettingsView() {
       </fieldset>
       <MaxRoundsField />
       <PersonalizationFields />
+      <AiMemoryFields />
+      <UpdateFields />
       <DiagnosticsFields />
       <p className="text-xs text-muted">Atalhos de teclado: ⌘/Ctrl+Shift+/ mostra a lista.</p>
     </div>
@@ -124,6 +129,76 @@ function PersonalizationFields() {
       </fieldset>
       {error && <p role="alert" className="text-xs text-warn">{error}</p>}
     </>
+  );
+}
+
+function AiMemoryFields() {
+  const enabled = useAppStore((s) => s.settings.aiMemory.runAgents);
+  const setSetting = useAppStore((s) => s.setSetting);
+  const check = useDoctorStore((s) => s.report?.results.find((r) => r.id === 'ai-memory') ?? null);
+  const runDoctor = useDoctorStore((s) => s.run);
+  const openDocs = useDoctorStore((s) => s.openDocs);
+  const [installing, setInstalling] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const installed = check !== null && check.state !== 'optional' && check.state !== 'missing';
+  return (
+    <fieldset className="flex flex-col gap-1.5" data-testid="ai-memory-settings">
+      <legend className="mb-1 text-muted">Memória compartilhada (ai-memory)</legend>
+      <p className="text-xs text-muted">Integração opcional com o <span className="font-medium">ai-memory</span> (projeto open source de terceiros): os agentes iniciam por <code>ai-memory run</code> e o Codex continua de onde o Claude parou, com a memória num servidor local. Na primeira vez, o próprio ai-memory instala hooks e MCP nas configurações do Claude Code e do Codex.</p>
+      <p className="text-xs" data-testid="ai-memory-check">
+        {!check ? 'Ainda não verificado pelo System Doctor.' : `${check.version ? `${check.version} — ` : ''}${check.detail}`}
+      </p>
+      <label className="flex items-center gap-2 text-xs">
+        <input type="checkbox" checked={enabled} disabled={!installed && !enabled} data-testid="ai-memory-run-agents"
+          onChange={(e) => void setSetting('aiMemory', { runAgents: e.target.checked }).then(setError)} />
+        Iniciar Claude Code e Codex via <code>ai-memory run</code> (vale para as próximas sessões)
+      </label>
+      <div className="flex gap-1.5">
+        {!installed && <Button onClick={() => setInstalling(true)} data-testid="ai-memory-install">Instalar…</Button>}
+        <Button variant="ghost" onClick={() => void runDoctor(['ai-memory'])} data-testid="ai-memory-recheck">Verificar de novo</Button>
+        <Button variant="ghost" onClick={() => void openDocs('ai-memory')}>Documentação</Button>
+      </div>
+      {error && <p role="alert" className="text-xs text-warn">{error}</p>}
+      <InstallDialog dependency={installing ? 'ai-memory' : null} onClose={() => setInstalling(false)} />
+    </fieldset>
+  );
+}
+
+const UPDATE_TEXT = {
+  disabled: 'Verificação desligada.',
+  idle: 'Ainda não verificado nesta sessão.',
+  checking: 'Consultando o GitHub…',
+  'up-to-date': 'Você está na versão mais recente.',
+  available: '',
+  error: '',
+} as const;
+
+function UpdateFields() {
+  const enabled = useAppStore((s) => s.settings.updateCheck);
+  const setSetting = useAppStore((s) => s.setSetting);
+  const status = useUpdateStore((s) => s.status);
+  const check = useUpdateStore((s) => s.check);
+  const openRelease = useUpdateStore((s) => s.openRelease);
+  const toggle = async (on: boolean) => { await setSetting('updateCheck', on); await check(); };
+  const text = !status ? '' : status.state === 'available' && status.latest
+    ? `Nova versão disponível: ${status.latest.version}${status.latest.prerelease ? ' (beta)' : ''}.`
+    : status.state === 'error' ? status.error ?? 'Falha na verificação.' : UPDATE_TEXT[status.state];
+  return (
+    <fieldset className="flex flex-col gap-1.5">
+      <legend className="mb-1 text-muted">Atualizações</legend>
+      <p className="text-xs text-muted">O DevFusion só avisa: consulta a lista pública de releases no GitHub (sem login e sem enviar dados seus) e abre a página da versão. Nada é baixado nem instalado sozinho; confira o SHA-256 publicado antes de instalar.</p>
+      <label className="flex items-center gap-2 text-xs">
+        <input type="checkbox" checked={enabled} data-testid="update-check-enabled" onChange={(e) => void toggle(e.target.checked)} />
+        Verificar novas versões (no máximo uma vez por dia)
+      </label>
+      <div className="flex items-center gap-1.5">
+        <Button onClick={() => void check()} disabled={!enabled || status?.state === 'checking'} data-testid="update-check-now">Verificar agora</Button>
+        {status?.state === 'available' && <Button variant="ghost" onClick={() => void openRelease()} data-testid="update-open-release">Abrir página da versão</Button>}
+      </div>
+      <p role="status" className="text-xs text-muted" data-testid="update-status">
+        {text} {status && <>Versão instalada: {status.currentVersion}.</>}{status?.checkedAt && <> Última verificação: {new Date(status.checkedAt).toLocaleString()}.</>}
+      </p>
+    </fieldset>
   );
 }
 

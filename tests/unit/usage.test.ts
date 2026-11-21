@@ -56,6 +56,8 @@ describe('ClaudeStatuslineBridge', () => {
     expect(existsSync(b.scriptPath)).toBe(true);
     expect(new ClaudeStatuslineBridge(dir, () => ({ executable: '/e', runAsNodeEnv: true })).settingsArgs()[1]).toContain('ELECTRON_RUN_AS_NODE=1 ');
     expect(new ClaudeStatuslineBridge(dir, () => null).settingsArgs()).toEqual([]);
+    // Sem runtime (sem Node externo no Windows ou no app empacotado): card explica em vez de esperar dados.
+    expect(new ClaudeStatuslineBridge(dir, () => null).read()).toMatchObject({ status: 'unavailable', note: expect.stringContaining('instale o Node.js') });
     expect(() => shellQuote('a\nb')).toThrow();
   });
 

@@ -12,6 +12,8 @@ export interface LaunchOptions {
   /** Simula rede: por padrão aponta para uma porta fechada local (sem tráfego externo). */
   connectivity?: string;
   minFreeDiskBytes?: number;
+  /** Lista de releases simulada (servidor local); padrão: porta fechada. */
+  updateFeed?: string;
 }
 
 export async function launch(userDataDir: string, opts: LaunchOptions): Promise<{ app: ElectronApplication; page: Page }> {
@@ -23,6 +25,8 @@ export async function launch(userDataDir: string, opts: LaunchOptions): Promise<
     PATH: process.env['PATH'] ?? '',
     // Nada de abrir navegador/gerenciador de arquivos de verdade durante os testes.
     DEVFUSION_SUPPRESS_EXTERNAL_OPEN: '1',
+    // Verificação de atualização aponta para porta fechada local (sem tráfego externo nos testes).
+    DEVFUSION_UPDATE_FEED: opts.updateFeed ?? 'http://127.0.0.1:9/releases',
   };
   if (opts.minFreeDiskBytes !== undefined) env['DEVFUSION_MIN_FREE_DISK_BYTES'] = String(opts.minFreeDiskBytes);
   for (const k of ['HOME', 'USER', 'TMPDIR', 'LANG', 'SystemRoot', 'APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'TEMP', 'TMP', 'ComSpec', 'PATHEXT',

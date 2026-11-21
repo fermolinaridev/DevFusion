@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, Notification } from 'electron';
+import { app, BrowserWindow, dialog, Notification, session } from 'electron';
 import { writeFile } from 'node:fs/promises';
 import type { GitLocation, RepoStatus } from '@shared/git';
 import * as nodePty from 'node-pty';
@@ -7,6 +7,7 @@ import { isAbsolute, join } from 'node:path';
 import type { InstallMethod } from '@shared/doctor';
 import { IPC, IPC_EVENTS, type IpcEvent } from '@shared/ipcChannels';
 import type { AppInfo, IpcHandlers } from '@shared/ipcContracts';
+import type { Settings } from '@shared/settings';
 import { AgentService } from './agents/AgentService';
 import { ApprovalRepository } from './database/repositories/ApprovalRepository';
 import { MessageRepository } from './database/repositories/MessageRepository';
@@ -38,6 +39,9 @@ import { defaultConnectivityTargets, tlsProbe } from './system/checks';
 import { DependencyInstaller } from './system/DependencyInstaller';
 import { DOC_URLS, INSTALL_CATALOG } from './system/InstallCatalog';
 import { PlatformDetector } from './system/PlatformDetector';
+import { probePty } from './terminal/ptyProbe';
+import { aiMemoryRunCommand } from './agents/aiMemory';
+import { UpdateChecker } from './updates/UpdateChecker';
 import { configureExternalOpen, openExternalUrl, openLocalPath } from './system/externalOpen';
 import { runCommand } from './system/ProcessRunner';
 import { SystemDoctor } from './system/SystemDoctor';
@@ -54,7 +58,7 @@ process.on('unhandledRejection', (e) => log.error('Promessa rejeitada sem tratam
 // Sandbox em todos os renderers (além do sandbox configurado por janela).
 app.enableSandbox();
 // Variáveis só para testes/desenvolvimento: ignoradas no app empacotado.
-if (app.isPackaged) for (const k of ['DEVFUSION_TOOL_PATH', 'DEVFUSION_CONNECTIVITY_TARGETS', 'DEVFUSION_MIN_FREE_DISK_BYTES', 'DEVFUSION_USER_DATA_DIR', 'DEVFUSION_SUPPRESS_EXTERNAL_OPEN']) delete process.env[k];
+if (app.isPackaged) for (const k of ['DEVFUSION_TOOL_PATH', 'DEVFUSION_CONNECTIVITY_TARGETS', 'DEVFUSION_MIN_FREE_DISK_BYTES', 'DEVFUSION_USER_DATA_DIR', 'DEVFUSION_SUPPRESS_EXTERNAL_OPEN', 'DEVFUSION_UPDATE_FEED']) delete process.env[k];
 configureExternalOpen({ suppress: process.env['DEVFUSION_SUPPRESS_EXTERNAL_OPEN'] === '1', log });
 
 // Diretório de dados alternativo (usado pelos testes E2E para isolamento).
@@ -142,6 +146,7 @@ if (!app.requestSingleInstanceLock()) {
         freeDiskBytes: async (dir) => { const s = await statfs(dir); return Number(s.bavail) * Number(s.bsize); },
         connect: tlsProbe,
         connectivityTargets,
+        ptyProbe: () => probePty({ spawn: nodePty.spawn, platform: process.platform, env: detector.childEnv(), cwd: userData }),
       }),
       persist: (results) => dependencies.saveAll(results),
       onReport: (report) => send(IPC_EVENTS.doctorReport, report),
@@ -165,11 +170,19 @@ if (!app.requestSingleInstanceLock()) {
     const claudeUsage = new ClaudeStatuslineBridge(join(userData, 'usage'), () => {
       const node = detector.locate('node').found?.path;
       if (node) return { executable: node, runAsNodeEnv: false };
-      // Sem Node externo, o próprio Electron roda o script (POSIX). No Windows, sem Node, não há statusline.
-      return process.platform === 'win32' ? null : { executable: process.execPath, runAsNodeEnv: true };
+      // Sem Node externo, o Electron só roda o script em desenvolvimento (POSIX): no app empacotado a
+      // Fuse RunAsNode está desligada e o executável abriria o app. No Windows, sem Node, não há statusline.
+      return process.platform === 'win32' || app.isPackaged ? null : { executable: process.execPath, runAsNodeEnv: true };
     });
     const agentService = new AgentService({
       extraAgentArgs: { claude: () => claudeUsage.settingsArgs() },
+      // Integração opcional (desligada por padrão): Claude e Codex iniciados via `ai-memory run`.
+      wrapAgentLaunch: (agent, exe, args) => {
+        if (!settings.getAll().aiMemory.runAgents) return null;
+        const mem = detector.locate('ai-memory').found;
+        if (!mem) throw new Error('A integração com o ai-memory está ligada, mas o ai-memory não foi encontrado. Instale pelo System Doctor ou desligue em Configurações.');
+        return aiMemoryRunCommand(mem.path, agent, exe, args);
+      },
       detector,
       ptyFactory: nodePty,
       configuredPaths: () => { const p = settings.getAll().cliPaths; return { claude: p.claude, codex: p.codex }; },
@@ -282,6 +295,20 @@ if (!app.requestSingleInstanceLock()) {
     await workspace.restore(settings.getAll().lastWorkspaceId);
     await rewatch();
 
+    // Aviso de atualização (Fase 8): só leitura do GitHub Releases, sem login e sem download.
+    const updates = new UpdateChecker({
+      currentVersion: app.getVersion(),
+      feedUrl: process.env['DEVFUSION_UPDATE_FEED'] || undefined,
+      enabled: () => settings.getAll().updateCheck,
+      onChange: (s) => send(IPC_EVENTS.updates, s),
+      fetchJson: async (url, signal) => {
+        // Sessão própria, só em memória: a sessão do renderer continua bloqueando toda rede externa.
+        const res = await session.fromPartition('devfusion-update-check', { cache: false }).fetch(url, { signal, headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'DevFusion-update-check' } });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      },
+    });
+
     const openAllowed = async (url: string) => {
       const allowed = new Set<string>([...Object.values(DOC_URLS), ...INSTALL_CATALOG.map((e) => e.sourceUrl)]);
       if (!allowed.has(url)) return false;
@@ -298,8 +325,18 @@ if (!app.requestSingleInstanceLock()) {
         database: { schemaVersion, sqliteVersion: sqlite },
       }),
       [IPC.settingsGetAll]: () => settings.getAll(),
-      [IPC.settingsSet]: ({ key, value }) => {
+      [IPC.settingsSet]: async ({ key, value }) => {
+        if (key === 'aiMemory' && (value as Settings['aiMemory']).runAgents && !settings.getAll().aiMemory.runAgents) {
+          const ok = await confirmNative(mainWindow, 'Integração com o ai-memory', 'Iniciar Claude Code e Codex pelo ai-memory?', [
+            'As próximas sessões de agente serão abertas com `ai-memory run`, que guarda a memória do trabalho num servidor local e permite que um agente continue de onde o outro parou.',
+            'Na primeira vez para cada agente, o ai-memory instala os hooks e o servidor MCP dele nas configurações do Claude Code e do Codex (comportamento do próprio ai-memory).',
+            'Prompts e chamadas de ferramentas passam a ser capturados (sanitizados pelo ai-memory) e ficam no servidor configurado no ai-memory, normalmente o local.',
+            'Você pode desligar a qualquer momento; sessões já abertas não mudam.',
+          ], 'Ligar');
+          if (!ok) return settings.getAll();
+        }
         const next = settings.set(key, value as never);
+        if (key === 'aiMemory') log.info('Integração ai-memory', { runAgents: next.aiMemory.runAgents });
         // Caminho de CLI alterado: revalida as ferramentas afetadas.
         if (key === 'cliPaths') void doctor.run(['git', 'claude', 'codex']);
         return next;
@@ -475,6 +512,18 @@ if (!app.requestSingleInstanceLock()) {
         audit.record('diagnostics.export', null, {});
         return detector.shortenHome(r.filePath);
       }),
+      [IPC.updatesGet]: () => updates.get(),
+      [IPC.updatesCheck]: async () => {
+        const s = await updates.check();
+        log.info('Verificação de atualização', { state: s.state, latest: s.latest?.version ?? null });
+        return s;
+      },
+      [IPC.updatesOpenRelease]: async () => {
+        const url = updates.availableUrl();
+        if (!url) return false;
+        await openExternalUrl(url);
+        return true;
+      },
       [IPC.logsOpenFolder]: async () => (await openLocalPath(logDir)) === '',
       [IPC.dashboardGet]: () => {
         const ws = wsRef();
@@ -519,6 +568,10 @@ if (!app.requestSingleInstanceLock()) {
     });
 
     usageService.start();
+    // Primeira verificação 15 s após abrir; depois no máximo uma vez por dia (se ligada).
+    const autoCheck = () => { void updates.maybeCheck()?.then((s) => log.info('Verificação de atualização', { state: s.state, latest: s.latest?.version ?? null })); };
+    setTimeout(autoCheck, 15_000).unref();
+    setInterval(autoCheck, 6 * 60 * 60 * 1000).unref();
 
     // System Doctor em toda inicialização, sem bloquear a janela.
     void doctor.run().then((r) => log.info('Diagnóstico concluído', { mode: r.summary.mode, ready: r.summary.readyAgents }));

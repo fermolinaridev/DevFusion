@@ -14,6 +14,7 @@ import {
 } from './orchestration';
 import { SETTINGS_SCHEMA, isSettingKey, type Settings } from './settings';
 import type { UsageReport } from './usage';
+import type { UpdateStatus } from './updates';
 import {
   ExplorerDiffArgsSchema, ExplorerListArgsSchema, GitStatusArgsSchema, WorktreeCommitArgsSchema, WorktreeCreateArgsSchema, WorktreeIdArgsSchema, WorktreeRemoveArgsSchema,
   type ExplorerEntry, type GitFileStatus, type GitLocation, type MergeCheck, type RepoStatus, type WorktreeInfo,
@@ -103,6 +104,9 @@ export const IPC_ARG_SCHEMAS = {
   [IPC.workspaceOpenRecent]: OpenRecentArgsSchema,
   [IPC.diagnosticsExport]: z.undefined(),
   [IPC.logsOpenFolder]: z.undefined(),
+  [IPC.updatesGet]: z.undefined(),
+  [IPC.updatesCheck]: z.undefined(),
+  [IPC.updatesOpenRelease]: z.undefined(),
 } as const;
 
 /** Resultado de ações que podem falhar por motivo esperado (mensagem para o usuário). */
@@ -111,7 +115,8 @@ export type ActionResult<T> = { ok: true; value: T } | { ok: false; reason: stri
 export interface IpcHandlers {
   [IPC.appGetInfo]: () => AppInfo;
   [IPC.settingsGetAll]: () => Settings;
-  [IPC.settingsSet]: (arg: { key: keyof Settings; value: Settings[keyof Settings] }) => Settings;
+  /** Ligar a integração ai-memory pede confirmação nativa no main; recusada, nada muda. */
+  [IPC.settingsSet]: (arg: { key: keyof Settings; value: Settings[keyof Settings] }) => Settings | Promise<Settings>;
   [IPC.doctorGetReport]: () => DoctorReport;
   [IPC.doctorRun]: (arg: { checks?: CheckId[] } | undefined) => Promise<DoctorReport>;
   [IPC.installerGetMethods]: (arg: { dependency: InstallableDependency }) => Promise<InstallMethod[]>;
@@ -168,4 +173,9 @@ export interface IpcHandlers {
   /** Diálogo nativo de salvar; `value: null` = cancelado. */
   [IPC.diagnosticsExport]: () => Promise<ActionResult<string | null>>;
   [IPC.logsOpenFolder]: () => Promise<boolean>;
+  [IPC.updatesGet]: () => UpdateStatus;
+  /** Consulta o GitHub Releases agora (respeita a preferência; nunca baixa nada). */
+  [IPC.updatesCheck]: () => Promise<UpdateStatus>;
+  /** Abre no navegador a página da release disponível (URL validada no main). */
+  [IPC.updatesOpenRelease]: () => Promise<boolean>;
 }

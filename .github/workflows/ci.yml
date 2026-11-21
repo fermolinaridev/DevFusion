@@ -54,6 +54,22 @@ jobs:
         if: runner.os == 'Windows'
         run: npx playwright test --reporter=list,github
 
+      # Fase 8: empacota (sem instalador) e testa o app empacotado com as Fuses ativas.
+      - name: Empacotar (pasta)
+        run: npx electron-builder --dir --publish never
+
+      - name: Teste do app empacotado (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npm run test:package -- --reporter=list,github
+        env:
+          DEVFUSION_PACKAGED_EXE: ${{ github.workspace }}/release/linux-unpacked/devfusion
+
+      - name: Teste do app empacotado (Windows)
+        if: runner.os == 'Windows'
+        run: npm run test:package -- --reporter=list,github
+        env:
+          DEVFUSION_PACKAGED_EXE: ${{ github.workspace }}\release\win-unpacked\DevFusion.exe
+
       - name: Guardar resultados em caso de falha
         if: failure()
         uses: actions/upload-artifact@v4

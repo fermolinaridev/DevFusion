@@ -110,6 +110,12 @@ const api: DevFusionApi = Object.freeze({
     exportToFile: () => ipcRenderer.invoke(IPC.diagnosticsExport),
     openLogsFolder: () => ipcRenderer.invoke(IPC.logsOpenFolder),
   }),
+  updates: Object.freeze({
+    get: () => ipcRenderer.invoke(IPC.updatesGet),
+    check: () => ipcRenderer.invoke(IPC.updatesCheck),
+    openRelease: () => ipcRenderer.invoke(IPC.updatesOpenRelease),
+    onChanged: (cb: (s: never) => void) => subscribe(IPC_EVENTS.updates, cb),
+  }),
 } as DevFusionApi);
 
 contextBridge.exposeInMainWorld('devfusion', api);

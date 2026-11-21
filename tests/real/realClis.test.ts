@@ -23,7 +23,7 @@ describe('CLIs reais (opcional)', () => {
     try {
       const r = await new SystemDoctor({ context: () => ({
         detector, run: runCommand, cliPaths: DEFAULT_SETTINGS.cliPaths, userDataDir: dir, workspacePath: null, minFreeDiskBytes: 1,
-        freeDiskBytes: async () => 1e12, connect: tlsProbe, connectivityTargets: defaultConnectivityTargets({}),
+        freeDiskBytes: async () => 1e12, connect: tlsProbe, connectivityTargets: defaultConnectivityTargets({}), ptyProbe: async () => ({ ok: true, ms: 0 }),
       }) }).run();
       const line = (id: string) => r.results.find((x) => x.id === id);
       for (const id of ['claude', 'codex', 'claude-auth', 'codex-auth', 'net-anthropic', 'net-openai']) console.log(id, line(id)?.state, line(id)?.version ?? '');

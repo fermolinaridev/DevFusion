@@ -29,6 +29,8 @@ export interface CliAgentDeps {
   onSessionEnded?: (sessionId: string, status: AgentStatus, kind: SessionKind) => void;
   /** Argumentos extras para sessões de agente (ex.: --settings da statusline de uso). */
   extraAgentArgs?: () => string[];
+  /** Embrulha sessões de agente (ex.: `ai-memory run`); null = lançar direto. Lança erro se não puder. */
+  wrapAgentLaunch?: (exe: string, args: string[]) => { file: string; args: string[]; display: string[] } | null;
 }
 
 export class PasteNotSafeError extends Error {}
@@ -78,12 +80,13 @@ export class CliAgentAdapter implements AgentAdapter {
     delete env['NO_COLOR'];
     const sessionId = randomUUID();
     try {
-      const cmd = ptyCommand(found.path, args, this.deps.detector.platform, env);
+      const wrapped = opts.kind === 'agent' ? this.deps.wrapAgentLaunch?.(found.path, args) ?? null : null;
+      const cmd = wrapped ? ptyCommand(wrapped.file, wrapped.args, this.deps.detector.platform, env) : ptyCommand(found.path, args, this.deps.detector.platform, env);
       const pid = this.deps.terminals.start(this.id, { file: cmd.file, args: cmd.args, cwd, env, cols: opts.cols, rows: opts.rows });
       this.cwdReal = cwd;
       this.update({
         kind: opts.kind, permission, location: opts.location ?? { kind: 'root' }, status: 'running', stopping: false, sessionId, pid, cwd: this.deps.detector.shortenHome(cwd),
-        command: [this.cfg.tool, ...args.filter((a, i) => args[i - 1] !== '--settings')].join(' '), startedAt: new Date().toISOString(), endedAt: null, exitCode: null, signal: null, error: null,
+        command: [...(wrapped ? wrapped.display : [this.cfg.tool]), ...args.filter((a, i) => args[i - 1] !== '--settings' && a !== '--settings')].join(' '), startedAt: new Date().toISOString(), endedAt: null, exitCode: null, signal: null, error: null,
       });
       this.deps.onSessionCreated?.(sessionId, this.id, opts.kind);
     } catch (e) {

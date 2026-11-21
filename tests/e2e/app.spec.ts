@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FakeToolDir } from '../helpers/fakeTools';
@@ -40,7 +42,7 @@ test('renderer não tem acesso a Node e só vê a API mínima', async () => {
       frozen: Object.isFrozen(api),
     };
   });
-  expect(probe).toEqual({ require: 'undefined', process: 'undefined', ipcRenderer: 'undefined', electron: 'undefined', apiKeys: ['agents', 'app', 'chat', 'dashboard', 'diagnostics', 'docs', 'doctor', 'editor', 'git', 'history', 'installer', 'settings', 'tasks', 'terminal', 'usage', 'workspace', 'worktrees'], appKeys: ['getInfo'], settingsKeys: ['getAll', 'set'], frozen: true });
+  expect(probe).toEqual({ require: 'undefined', process: 'undefined', ipcRenderer: 'undefined', electron: 'undefined', apiKeys: ['agents', 'app', 'chat', 'dashboard', 'diagnostics', 'docs', 'doctor', 'editor', 'git', 'history', 'installer', 'settings', 'tasks', 'terminal', 'updates', 'usage', 'workspace', 'worktrees'], appKeys: ['getInfo'], settingsKeys: ['getAll', 'set'], frozen: true });
   await app.close();
 });
 
@@ -112,4 +114,41 @@ test('tema escolhido persiste no SQLite entre reinícios', async () => {
   await page.getByRole('button', { name: 'Configurações' }).click();
   await expect(page.getByTestId('theme-light')).toBeChecked();
   await app.close();
+});
+
+test('aviso de atualização: consulta a lista de releases, mostra a versão nova e só abre a página', async () => {
+  const tag = 'v99.0.0-beta.1';
+  let hits = 0;
+  const server = createServer((req, res) => {
+    hits++;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify([
+      { tag_name: tag, html_url: `https://github.com/fermolinaridev/DevFusion/releases/tag/${tag}`, draft: false, prerelease: true, published_at: '2026-11-20T00:00:00Z' },
+      { tag_name: 'v100.0.0', html_url: 'https://evil.example/releases/tag/v100.0.0', draft: false, prerelease: false },
+    ]));
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  try {
+    const { app, page } = await launchRaw(dir, { toolDir: tools.dir, updateFeed: `http://127.0.0.1:${(server.address() as AddressInfo).port}/releases` });
+    await passOnboarding(page);
+    await page.getByRole('button', { name: 'Configurações' }).click();
+    await page.getByTestId('update-check-now').click();
+    await expect(page.getByTestId('update-status')).toContainText('Nova versão disponível: 99.0.0-beta.1 (beta).');
+    await expect(page.getByTestId('status-update')).toHaveText('Nova versão 99.0.0-beta.1 disponível');
+    // Abrir só encaminha a URL validada ao navegador do sistema (suprimido nos testes); nada é baixado.
+    await page.getByTestId('update-open-release').click();
+    const mainLog = join(dir, 'logs', 'main.log');
+    await expect.poll(() => existsSync(mainLog) ? readFileSync(mainLog, 'utf8') : '').toContain(`releases/tag/${tag}`);
+    expect(readFileSync(mainLog, 'utf8')).not.toContain('evil.example');
+    // Desligar: nenhuma consulta nova e o aviso some.
+    const before = hits;
+    await page.getByTestId('update-check-enabled').uncheck();
+    await expect(page.getByTestId('update-status')).toContainText('Verificação desligada.');
+    await expect(page.getByTestId('status-update')).toHaveCount(0);
+    await expect(page.getByTestId('update-check-now')).toBeDisabled();
+    expect(hits).toBe(before);
+    await app.close();
+  } finally {
+    server.close();
+  }
 });

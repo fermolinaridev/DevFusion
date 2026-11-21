@@ -11,6 +11,8 @@
   },
   "include": [
     "tests/e2e/**/*",
+    "tests/package/**/*",
+    "playwright.package.config.ts",
     "playwright.config.ts",
     "src/preload/api.d.ts",
     "tests/helpers/**/*"

@@ -7,6 +7,7 @@ import { redact } from '@shared/redact';
 import type { Settings } from '@shared/settings';
 import type { PlatformDetector, ToolName } from './PlatformDetector';
 import type { CommandRunner, RunResult } from './ProcessRunner';
+import type { PtyProbeResult } from '../terminal/ptyProbe';
 import { compareVersions, parseVersion } from './version';
 
 export interface CheckContext {
@@ -20,6 +21,8 @@ export interface CheckContext {
   freeDiskBytes: (dir: string) => Promise<number>;
   connect: (host: string, port: number, timeoutMs: number) => Promise<ConnectResult>;
   connectivityTargets: Record<'anthropic' | 'openai', { host: string; port: number }>;
+  /** Abre um processo trivial no pseudo-terminal (módulo nativo usado pelos agentes). */
+  ptyProbe: () => Promise<PtyProbeResult>;
 }
 
 export type ConnectResult = { ok: true; ms: number } | { ok: false; timedOut: boolean; code: string };
@@ -127,6 +130,29 @@ export const CHECKS: readonly CheckDef[] = [
       } catch (e) {
         return { state: 'unknown', detail: `Não foi possível medir o espaço livre (${(e as NodeJS.ErrnoException).code ?? 'erro'}).`, action: { kind: 'retry' } };
       }
+    },
+  },
+  {
+    // Integração opcional: memória compartilhada e handoff entre Claude Code e Codex.
+    id: 'ai-memory', label: 'ai-memory (memória compartilhada)', group: 'tools', requirement: 'optional',
+    async run(ctx) {
+      const o = await toolCheck(ctx, 'ai-memory', null, ['--version']);
+      if (o.state === 'missing') return { state: 'optional', detail: 'Opcional, não instalado. Dá memória compartilhada aos agentes: o Codex continua de onde o Claude parou (e vice-versa).', action: { kind: 'install', dependency: 'ai-memory' } };
+      if (o.state !== 'ok' || !o.resolvedPath) return withAction(o, { kind: 'open-docs', docId: 'ai-memory' });
+      // `status` sai com erro quando o servidor local não responde (verificado no código do ai-memory).
+      const s = await ctx.run(o.resolvedPath, ['status', '--json'], { env: ctx.detector.childEnv(), timeoutMs: 8_000 });
+      const { resolvedPath: _p, ...base } = o;
+      if (s.exitCode === 0) return { ...base, detail: 'Instalado; servidor local respondendo.', action: none };
+      if (s.timedOut) return { ...base, state: 'unknown', detail: 'Instalado, mas o servidor não respondeu a tempo.', action: { kind: 'retry' } };
+      return { ...base, state: 'unknown', detail: 'Instalado, mas o servidor local não respondeu. Rode `ai-memory setup` no seu terminal (cria o serviço e liga os agentes).', action: { kind: 'open-docs', docId: 'ai-memory' } };
+    },
+  },
+  {
+    id: 'pty', label: 'Terminal integrado (PTY)', group: 'system', requirement: 'required',
+    async run(ctx) {
+      const r = await ctx.ptyProbe();
+      if (r.ok) return { state: 'ok', detail: `Pseudo-terminal funcionando (${r.ms} ms).` };
+      return { state: 'error', detail: `${r.detail} Sem o terminal integrado os agentes não podem ser abertos; reinstale o DevFusion.`, action: { kind: 'retry' } };
     },
   },
   {

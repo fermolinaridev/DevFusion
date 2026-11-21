@@ -2,6 +2,7 @@ import { useAppStore } from '../../stores/appStore';
 import { useAgentStore } from '../../stores/agentStore';
 import { useDoctorStore } from '../../stores/doctorStore';
 import { useUsageStore } from '../../stores/usageStore';
+import { useUpdateStore } from '../../stores/updateStore';
 import type { ProviderUsage } from '@shared/usage';
 
 const short = (u: ProviderUsage | undefined) => {
@@ -16,6 +17,8 @@ export function StatusBar() {
   const report = useDoctorStore((s) => s.report);
   const workspace = useAgentStore((s) => s.workspace);
   const usage = useUsageStore((s) => s.report);
+  const update = useUpdateStore((s) => (s.status?.state === 'available' ? s.status.latest : null));
+  const openRelease = useUpdateStore((s) => s.openRelease);
   const active = useAgentStore((s) => Object.values(s.sessions).filter((x) => x?.status === 'running').length);
   const git = !workspace ? '—' : workspace.git.isRepo ? workspace.git.branch ?? '—' : 'não é repositório';
   const problems = report?.results.filter((r) => r.requirement !== 'optional' && r.state !== 'ok').length ?? 0;
@@ -26,6 +29,12 @@ export function StatusBar() {
       <span data-testid="status-sessions">Sessões ativas: {active}</span>
       <span data-testid="status-doctor">Diagnóstico: {diag}</span>
       <span data-testid="status-usage" title="Uso da janela de 5 horas (fontes oficiais das CLIs)">5 h: Claude {short(usage?.claude)} · Codex {short(usage?.codex)}</span>
+      {update && (
+        <button className="text-accent underline-offset-2 hover:underline" onClick={() => void openRelease()} data-testid="status-update"
+          title="Abre a página da versão no GitHub (nada é baixado automaticamente)">
+          Nova versão {update.version} disponível
+        </button>
+      )}
       {info && (
         <span className="ml-auto" data-testid="status-db">
           DevFusion {info.appVersion} · {PLATFORM_LABEL[info.platform]} {info.arch} · Banco v{info.database.schemaVersion} (SQLite {info.database.sqliteVersion})

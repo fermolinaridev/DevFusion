@@ -17,6 +17,7 @@ import { useAgentStore } from './stores/agentStore';
 import { useAppStore } from './stores/appStore';
 import { useChatStore } from './stores/chatStore';
 import { useUsageStore } from './stores/usageStore';
+import { useUpdateStore } from './stores/updateStore';
 import { useGitStore } from './stores/gitStore';
 import { useDoctorStore } from './stores/doctorStore';
 
@@ -35,6 +36,8 @@ export function App() {
   useEffect(() => initChat(), [initChat]);
   const initUsage = useUsageStore((s) => s.init);
   useEffect(() => initUsage(), [initUsage]);
+  const initUpdates = useUpdateStore((s) => s.init);
+  useEffect(() => initUpdates(), [initUpdates]);
   const initGit = useGitStore((s) => s.init);
   useEffect(() => initGit(), [initGit]);
 

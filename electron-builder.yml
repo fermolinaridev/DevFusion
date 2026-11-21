@@ -1,0 +1,91 @@
+# Empacotamento do DevFusion (Fase 8). Docs: docs/18-FASE8-DISTRIBUICAO.md
+appId: dev.devfusion.app
+productName: DevFusion
+copyright: Copyright © 2026 DevFusion
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+
+directories:
+  output: release
+  buildResources: build
+
+# Só o código compilado (out/) e as dependências de produção (node-pty, zod).
+# Nada de testes, poc/, docs, .env, mapas de código ou CLIs de terceiros.
+files:
+  - out/**/*
+  - package.json
+  - "!**/*.map"
+  - "!**/.env*"
+  - "!**/*.{ts,tsx,md,markdown}"
+  - "!**/{test,tests,__tests__,example,examples,docs}/**"
+  # node-pty: só o JS e os binários; fontes, símbolos de depuração e cabeçalhos de build ficam fora.
+  - "!node_modules/node-addon-api/**"
+  - "!node_modules/node-pty/{src,deps,scripts,typings}/**"
+  - "!node_modules/node-pty/**/*.{pdb,test.js,gyp,gypi,cc,c,h,o,mk,d,map}"
+  - "!node_modules/node-pty/build/**/{obj.target,.deps}/**"
+  # Só os binários da plataforma/arquitetura empacotada (macros do electron-builder).
+  # Atenção: `files` por plataforma substitui esta lista inteira; mantenha tudo aqui.
+  - "!node_modules/node-pty/prebuilds/!(${platform}-${arch})/**"
+asar: true
+# node-pty carrega o .node e auxiliares (spawn-helper, conpty) do disco: fora do asar.
+asarUnpack:
+  - node_modules/node-pty/**
+# node-pty usa N-API (ABI estável): o binário instalado pelo npm já serve ao Electron.
+npmRebuild: false
+
+# Endurecimento do binário (https://www.electronjs.org/docs/latest/tutorial/fuses).
+# file:// continua com privilégios porque o renderer é carregado de arquivo local.
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.png
+  # Beta sem assinatura de código (decisão do usuário): SmartScreen avisa; SHA-256 publicado.
+  signAndEditExecutable: true
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: false
+  createStartMenuShortcut: true
+  shortcutName: DevFusion
+  # Dados do usuário (banco, logs, worktrees) ficam: desinstalar não apaga trabalho.
+  deleteAppDataOnUninstall: false
+
+mac:
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  category: public.app-category.developer-tools
+  icon: build/icon.png
+  # Sem Apple Developer ID (beta): assinatura ad-hoc ("-"), obrigatória no Apple Silicon depois
+  # que as Fuses alteram o binário. O Gatekeeper ainda pede confirmação na primeira abertura.
+  identity: "-"
+  hardenedRuntime: false
+
+dmg:
+  writeUpdateInfo: false
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  category: Development
+  icon: build/icon.png
+  # No Linux o node-pty é compilado no `npm ci` (build/Release); não há prebuild linux.
+  maintainer: DevFusion
+  synopsis: Claude Code e Codex lado a lado pelas CLIs oficiais
+
+# Atualização: o app só avisa (decisão do usuário); nenhum arquivo de auto-update é publicado.
+publish: null

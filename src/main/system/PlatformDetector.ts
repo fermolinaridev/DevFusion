@@ -3,7 +3,7 @@ import { accessSync, constants, statSync } from 'node:fs';
 import { homedir, arch, release } from 'node:os';
 import { delimiter as hostDelimiter, win32, posix } from 'node:path';
 
-export type ToolName = 'git' | 'claude' | 'codex' | 'node' | 'npm' | 'python' | 'python3' | 'docker' | 'brew' | 'winget';
+export type ToolName = 'git' | 'claude' | 'codex' | 'node' | 'npm' | 'python' | 'python3' | 'docker' | 'brew' | 'winget' | 'ai-memory';
 
 export interface PlatformDetectorOptions {
   platform?: NodeJS.Platform;
@@ -26,6 +26,8 @@ const ENV_ALLOWLIST = [
   'PATHEXT', 'TEMP', 'TMP', 'HOMEDRIVE', 'HOMEPATH', 'ProgramFiles', 'ProgramFiles(x86)', 'ProgramData', 'WINDIR',
   // Linux: abrir o navegador no login (xdg-open) e o chaveiro do sistema (Secret Service via D-Bus).
   'DISPLAY', 'XAUTHORITY', 'WAYLAND_DISPLAY', 'XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS',
+  // ai-memory (integração opcional): diretórios XDG onde ficam config/dados e servidor alternativo.
+  'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_STATE_HOME', 'AI_MEMORY_SERVER_URL',
 ];
 
 export class PlatformDetector {
@@ -60,6 +62,7 @@ export class PlatformDetector {
         this.join(localAppData, 'Microsoft', 'WinGet', 'Links'), // atalhos do WinGet
         this.join(programFiles, 'Git', 'cmd'),
         this.join(programFiles, 'nodejs'),
+        this.join(localAppData, 'Programs', 'ai-memory'), // install.ps1 do ai-memory
       ];
     }
     return [this.join(this.home, '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];

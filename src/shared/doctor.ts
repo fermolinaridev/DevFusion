@@ -8,6 +8,7 @@ export const CHECK_IDS = [
   'os',
   'app-data',
   'disk',
+  'pty',
   'git',
   'claude',
   'codex',
@@ -18,6 +19,7 @@ export const CHECK_IDS = [
   'node',
   'npm',
   'workspace',
+  'ai-memory',
   'python',
   'docker',
 ] as const;
@@ -73,13 +75,13 @@ export interface DoctorSummary {
 
 // ---------------------------------------------------------------- instalação
 
-export const INSTALLABLE = ['git', 'claude', 'codex', 'node'] as const;
+export const INSTALLABLE = ['git', 'claude', 'codex', 'node', 'ai-memory'] as const;
 export type InstallableDependency = (typeof INSTALLABLE)[number];
 
 export const CONFIGURABLE_TOOLS = ['git', 'claude', 'codex'] as const;
 export type ConfigurableTool = (typeof CONFIGURABLE_TOOLS)[number];
 
-export const DOC_IDS = ['claude-setup', 'claude-auth', 'codex-cli', 'codex-auth', 'git-download', 'node-download'] as const;
+export const DOC_IDS = ['claude-setup', 'claude-auth', 'codex-cli', 'codex-auth', 'git-download', 'node-download', 'ai-memory'] as const;
 export type DocId = (typeof DOC_IDS)[number];
 
 export interface InstallMethod {

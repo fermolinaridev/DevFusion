@@ -46,8 +46,9 @@ Estimativa inicial de referência: 13 semanas de trabalho individual; não é pr
 - [x] Unitários, integração e E2E; falhas, limites, recuperação, processos órfãos, logs sanitizados e revisão de segurança. Ver [17-FASE7-ESTABILIDADE.md](17-FASE7-ESTABILIDADE.md) (beta 0.2.0-beta.1; CI verde no Windows e no Linux).
 
 ## 8 — Distribuição
-- [ ] Instalador Windows, depois macOS/Linux após testes específicos.
-- [ ] README, manual, documentação, GitHub Releases e atualizações verificadas.
+- [x] Instalador Windows, depois macOS/Linux após testes específicos. Ver [18-FASE8-DISTRIBUICAO.md](18-FASE8-DISTRIBUICAO.md) (macOS testado; Windows/Linux pelo CI de release).
+- [x] README, manual, documentação, GitHub Releases e atualizações verificadas (aviso de versão com URL validada; release rascunho com SHA-256).
+- [x] Integração opcional com o ai-memory (memória compartilhada entre os agentes). Ver [19-AI-MEMORY.md](19-AI-MEMORY.md).
 
 ## Critério de lançamento
 Em instalação limpa o aplicativo verifica o ambiente, permite instalar/autenticar por fluxos oficiais e abrir um workspace com dois terminais. O usuário consegue encaminhar uma tarefa, revisar o resultado, salvar histórico e interromper processos. Automação só entra no release quando validada. Testes e limitações documentados; nenhum segredo armazenado.

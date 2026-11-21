@@ -2,6 +2,17 @@
 
 Todas as versões foram validadas no macOS (arm64). Windows e Linux passam a ser verificados pelo CI a partir da 0.2.0-beta.1.
 
+## 0.3.0-beta.1 — Fase 8 (distribuição)
+- Instaladores: Windows (NSIS por usuário, sem administrador), macOS (`.dmg` arm64 e x64, assinatura ad-hoc) e Linux (AppImage e `.deb`). Sem assinatura de código; `SHA256SUMS.txt` publicado em cada release.
+- Endurecimento do binário com Electron Fuses: sem `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` e `--inspect`; asar com validação de integridade e carregamento exclusivo.
+- Pacote enxuto: só código compilado, `node-pty` (binário da própria plataforma) e `zod`.
+- System Doctor: nova checagem "Terminal integrado (PTY)".
+- Aviso de nova versão pelo GitHub Releases (só avisa; nada é baixado sozinho; desligável).
+- Integração opcional com o [ai-memory](https://github.com/akitaonrails/ai-memory): detecção e servidor no Doctor, instalação assistida e agentes iniciados via `ai-memory run` (desligada por padrão, liga com confirmação).
+- Statusline do Claude no app empacotado exige Node.js externo (o card explica).
+- CI empacota e testa o app empacotado no Windows e no Linux; workflow de release cria rascunho com instaladores testados.
+- Manual do usuário (`docs/MANUAL.md`).
+
 ## 0.2.0-beta.1 — Fase 7 (estabilidade)
 - Revisão de segurança: fuzz de todos os canais IPC, confirmação para links ocultos (OSC 8) no terminal, sandbox global do Electron, variáveis de teste ignoradas no app empacotado, `dompurify` corrigido (0 alertas no `npm audit`).
 - Recuperação: renderer que cai é recarregado sem matar agentes (terminais reanexados, controle de fluxo zerado); exceções do main registradas; banco ilegível preservado com opção de mover para o lado.

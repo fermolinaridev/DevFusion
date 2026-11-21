@@ -3,7 +3,7 @@ import type { InstallableDependency } from '@shared/doctor';
 import { useDoctorStore } from '../../stores/doctorStore';
 import { Button, Modal } from '../ui/Modal';
 
-const NAMES: Record<InstallableDependency, string> = { claude: 'Claude Code', codex: 'Codex', git: 'Git', node: 'Node.js' };
+const NAMES: Record<InstallableDependency, string> = { claude: 'Claude Code', codex: 'Codex', git: 'Git', node: 'Node.js', 'ai-memory': 'ai-memory' };
 
 export function InstallDialog({ dependency, onClose }: { dependency: InstallableDependency | null; onClose: () => void }) {
   const { methods, loadMethods, startInstall, cancelInstall, openSource, install } = useDoctorStore();
