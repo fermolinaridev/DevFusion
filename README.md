@@ -22,12 +22,13 @@ Aplicativo desktop local para utilizar Claude Code e Codex em uma única interfa
 - [Fase 7 — estabilidade e beta](docs/17-FASE7-ESTABILIDADE.md)
 - [Fase 8 — distribuição](docs/18-FASE8-DISTRIBUICAO.md)
 - [Integração opcional com o ai-memory](docs/19-AI-MEMORY.md)
+- [Fase 9 — Dev Orchestrator](docs/20-FASE9-ORQUESTRADOR.md)
 - **[Manual do usuário](docs/MANUAL.md)** (instalar, primeiro uso, dados, desinstalar)
 - [Changelog](CHANGELOG.md)
 - [Prompt de implementação](PROMPT.md)
 - [Instruções dos agentes](AGENTS.md) e [CLAUDE.md](CLAUDE.md)
 
-Estado atual: **beta 0.3.0-beta.1** (Fases 0–8), validada no macOS com Claude Pro e ChatGPT Plus. Instaladores para Windows (NSIS), macOS (`.dmg`) e Linux (AppImage/`.deb`), sem assinatura de código e com SHA-256 publicado. Windows e Linux passam no CI; ainda sem teste manual nessas plataformas.
+Estado atual: **beta 0.3.0-beta.1** (Fases 0–8), validada no macOS com Claude Pro e ChatGPT Plus. Instaladores para Windows (NSIS), macOS (`.dmg`) e Linux (AppImage/`.deb`), sem assinatura de código e com SHA-256 publicado. Windows e Linux passam no CI; ainda sem teste manual nessas plataformas. Em desenvolvimento (Fase 9): **Dev Orchestrator**, um agente oficial no centro que distribui tarefas para workers do Claude e do Codex com modelo e esforço por classe de tarefa (macOS/Linux).
 
 O que já funciona:
 - **System Doctor** em toda abertura, onboarding e instalação assistida com confirmação.

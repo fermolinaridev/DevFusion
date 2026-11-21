@@ -73,11 +73,17 @@ export class ClaudeStatuslineBridge {
 
   /** Argumentos oficiais (`--settings`) que acrescentam a statusline do DevFusion à sessão. */
   settingsArgs(): string[] {
+    const statusLine = this.statusLineSetting();
+    return statusLine ? ['--settings', JSON.stringify({ statusLine })] : [];
+  }
+
+  /** Objeto `statusLine` do settings (null sem runtime); usado também pelo orquestrador. */
+  statusLineSetting(): Record<string, unknown> | null {
     const rt = this.runtime();
-    if (!rt) return [];
+    if (!rt) return null;
     this.install();
     const cmd = `${rt.runAsNodeEnv ? 'ELECTRON_RUN_AS_NODE=1 ' : ''}${shellQuote(rt.executable)} ${shellQuote(this.scriptPath)} ${shellQuote(this.dataPath)}`;
-    return ['--settings', JSON.stringify({ statusLine: { type: 'command', command: cmd, padding: 0 } })];
+    return { type: 'command', command: cmd, padding: 0 };
   }
 
   read(): ProviderUsage {

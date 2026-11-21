@@ -20,9 +20,12 @@ import { useUsageStore } from './stores/usageStore';
 import { useUpdateStore } from './stores/updateStore';
 import { useGitStore } from './stores/gitStore';
 import { useDoctorStore } from './stores/doctorStore';
+import { useWorkersStore } from './stores/workersStore';
+import { ModeBar } from './components/orchestrator/ModeBar';
+import { WorkersColumn } from './components/orchestrator/WorkersColumn';
 
 export function App() {
-  const { status, error, settings, load } = useAppStore();
+  const { status, error, settings, load, info } = useAppStore();
   const activeTab = useEditorStore((s) => s.active);
   const [help, setHelp] = useState(false);
   useShortcuts(useCallback(() => setHelp((h) => !h), []));
@@ -40,6 +43,10 @@ export function App() {
   useEffect(() => initUpdates(), [initUpdates]);
   const initGit = useGitStore((s) => s.init);
   useEffect(() => initGit(), [initGit]);
+  const initWorkers = useWorkersStore((s) => s.init);
+  useEffect(() => initWorkers(), [initWorkers]);
+  const orch = settings.orchestrator;
+  const orchestratorMode = orch.enabled && info?.platform !== 'win32';
 
   if (status === 'loading') {
     return <div className="flex h-full items-center justify-center text-muted" role="status">Carregando…</div>;
@@ -74,12 +81,26 @@ export function App() {
                   <EditorTabs />
                   <div className="relative min-h-0 flex-1">
                     {/* Terminais continuam montados e com tamanho real (invisíveis) enquanto o editor está à frente. */}
-                    <div className={activeTab === 'agents' ? 'h-full' : 'invisible absolute inset-0'} aria-hidden={activeTab !== 'agents'}>
-                      <Group orientation="horizontal">
-                        <Panel id="claude" defaultSize="50%" minSize="20%"><AgentPane agent="claude" /></Panel>
-                        <Separator className="w-px" />
-                        <Panel id="codex" defaultSize="50%" minSize="20%"><AgentPane agent="codex" /></Panel>
-                      </Group>
+                    <div className={activeTab === 'agents' ? 'flex h-full flex-col' : 'invisible absolute inset-0 flex flex-col'} aria-hidden={activeTab !== 'agents'}>
+                      <ModeBar />
+                      <div className="min-h-0 flex-1">
+                        {orchestratorMode ? (
+                          // Dev Orchestrator: workers do Claude | orquestrador (CLI oficial) | workers do Codex.
+                          <Group key="orchestrator" orientation="horizontal">
+                            <Panel id="col-workers-claude" defaultSize="25%" minSize="15%"><WorkersColumn provider="claude" /></Panel>
+                            <Separator className="w-px" />
+                            <Panel id="col-orchestrator" defaultSize="50%" minSize="25%"><AgentPane key={orch.lead} agent={orch.lead} orchestrator /></Panel>
+                            <Separator className="w-px" />
+                            <Panel id="col-workers-codex" defaultSize="25%" minSize="15%"><WorkersColumn provider="codex" /></Panel>
+                          </Group>
+                        ) : (
+                          <Group key="direct" orientation="horizontal">
+                            <Panel id="claude" defaultSize="50%" minSize="20%"><AgentPane agent="claude" /></Panel>
+                            <Separator className="w-px" />
+                            <Panel id="codex" defaultSize="50%" minSize="20%"><AgentPane agent="codex" /></Panel>
+                          </Group>
+                        )}
+                      </div>
                     </div>
                     {activeTab !== 'agents' && <div className="absolute inset-0 bg-bg"><EditorView key={activeTab} tabKey={activeTab} /></div>}
                   </div>

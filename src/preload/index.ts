@@ -42,7 +42,7 @@ const api: DevFusionApi = Object.freeze({
   }),
   agents: Object.freeze({
     list: () => ipcRenderer.invoke(IPC.agentsList),
-    start: (agent: unknown, kind: unknown, cols: unknown, rows: unknown, permission?: unknown, worktreeId?: unknown) => ipcRenderer.invoke(IPC.agentStart, { agent, kind, cols, rows, ...(permission === undefined ? {} : { permission }), ...(worktreeId === undefined ? {} : { worktreeId }) }),
+    start: (agent: unknown, kind: unknown, cols: unknown, rows: unknown, permission?: unknown, worktreeId?: unknown, orchestrator?: unknown) => ipcRenderer.invoke(IPC.agentStart, { agent, kind, cols, rows, ...(permission === undefined ? {} : { permission }), ...(worktreeId === undefined ? {} : { worktreeId }), ...(orchestrator === undefined ? {} : { orchestrator }) }),
     interrupt: (agent: unknown) => ipcRenderer.invoke(IPC.agentInterrupt, { agent }),
     stop: (agent: unknown) => ipcRenderer.invoke(IPC.agentStop, { agent }),
     stopAll: () => ipcRenderer.invoke(IPC.agentsStopAll),
@@ -115,6 +115,11 @@ const api: DevFusionApi = Object.freeze({
     check: () => ipcRenderer.invoke(IPC.updatesCheck),
     openRelease: () => ipcRenderer.invoke(IPC.updatesOpenRelease),
     onChanged: (cb: (s: never) => void) => subscribe(IPC_EVENTS.updates, cb),
+  }),
+  workers: Object.freeze({
+    list: () => ipcRenderer.invoke(IPC.workersList),
+    stop: (id: unknown) => ipcRenderer.invoke(IPC.workersStop, { id }),
+    onChanged: (cb: (s: never) => void) => subscribe(IPC_EVENTS.workers, cb),
   }),
 } as DevFusionApi);
 

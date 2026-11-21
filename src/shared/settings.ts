@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEFAULT_ORCHESTRATOR, OrchestratorSettingsSchema } from './orchestrator';
 
 /** Caminho absoluto (POSIX, unidade Windows ou UNC), sem caracteres de controle. */
 export const AbsolutePathSchema = z
@@ -33,6 +34,8 @@ export const SETTINGS_SCHEMA = {
   updateCheck: z.boolean(),
   /** Integração opcional com o ai-memory: iniciar Claude e Codex via `ai-memory run`. */
   aiMemory: z.object({ runAgents: z.boolean() }).strict(),
+  /** Dev Orchestrator (Fase 9): orquestrador oficial, roster de workers e limites. */
+  orchestrator: OrchestratorSettingsSchema,
 } as const;
 
 export type SettingKey = keyof typeof SETTINGS_SCHEMA;
@@ -49,6 +52,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notifications: { agentFailed: true, installDone: true, usageHigh: true },
   updateCheck: true,
   aiMemory: { runAgents: false },
+  orchestrator: DEFAULT_ORCHESTRATOR,
 };
 
 export const SETTING_KEYS = Object.keys(SETTINGS_SCHEMA) as SettingKey[];

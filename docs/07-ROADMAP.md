@@ -50,5 +50,8 @@ Estimativa inicial de referência: 13 semanas de trabalho individual; não é pr
 - [x] README, manual, documentação, GitHub Releases e atualizações verificadas (aviso de versão com URL validada; release rascunho com SHA-256).
 - [x] Integração opcional com o ai-memory (memória compartilhada entre os agentes). Ver [19-AI-MEMORY.md](19-AI-MEMORY.md).
 
+## 9 — Dev Orchestrator
+- [x] Orquestrador oficial (Claude Code ou Codex) que distribui tarefas para workers com modelo e esforço por classe de tarefa, workers visíveis em colunas, Parar tudo, ai-memory. Ver [20-FASE9-ORQUESTRADOR.md](20-FASE9-ORQUESTRADOR.md) (macOS testado com CLIs reais; Windows pendente).
+
 ## Critério de lançamento
 Em instalação limpa o aplicativo verifica o ambiente, permite instalar/autenticar por fluxos oficiais e abrir um workspace com dois terminais. O usuário consegue encaminhar uma tarefa, revisar o resultado, salvar histórico e interromper processos. Automação só entra no release quando validada. Testes e limitações documentados; nenhum segredo armazenado.

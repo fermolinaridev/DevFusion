@@ -15,6 +15,7 @@ import {
 import { SETTINGS_SCHEMA, isSettingKey, type Settings } from './settings';
 import type { UsageReport } from './usage';
 import type { UpdateStatus } from './updates';
+import { WorkerStopArgsSchema, type WorkersSnapshot } from './orchestrator';
 import {
   ExplorerDiffArgsSchema, ExplorerListArgsSchema, GitStatusArgsSchema, WorktreeCommitArgsSchema, WorktreeCreateArgsSchema, WorktreeIdArgsSchema, WorktreeRemoveArgsSchema,
   type ExplorerEntry, type GitFileStatus, type GitLocation, type MergeCheck, type RepoStatus, type WorktreeInfo,
@@ -107,6 +108,8 @@ export const IPC_ARG_SCHEMAS = {
   [IPC.updatesGet]: z.undefined(),
   [IPC.updatesCheck]: z.undefined(),
   [IPC.updatesOpenRelease]: z.undefined(),
+  [IPC.workersList]: z.undefined(),
+  [IPC.workersStop]: WorkerStopArgsSchema,
 } as const;
 
 /** Resultado de ações que podem falhar por motivo esperado (mensagem para o usuário). */
@@ -128,7 +131,7 @@ export interface IpcHandlers {
   [IPC.workspaceGet]: () => Promise<WorkspaceInfo | null>;
   [IPC.workspaceChoose]: () => Promise<ActionResult<WorkspaceInfo | null>>;
   [IPC.agentsList]: () => AgentSessionInfo[];
-  [IPC.agentStart]: (arg: { agent: AgentId; kind: SessionKind; cols: number; rows: number; permission: PermissionPreset; worktreeId: string | null }) => Promise<ActionResult<AgentSessionInfo>>;
+  [IPC.agentStart]: (arg: { agent: AgentId; kind: SessionKind; cols: number; rows: number; permission: PermissionPreset; worktreeId: string | null; orchestrator: boolean }) => Promise<ActionResult<AgentSessionInfo>>;
   [IPC.agentInterrupt]: (arg: { agent: AgentId }) => Promise<void>;
   [IPC.agentStop]: (arg: { agent: AgentId }) => Promise<AgentSessionInfo>;
   [IPC.agentsStopAll]: () => Promise<AgentSessionInfo[]>;
@@ -178,4 +181,8 @@ export interface IpcHandlers {
   [IPC.updatesCheck]: () => Promise<UpdateStatus>;
   /** Abre no navegador a página da release disponível (URL validada no main). */
   [IPC.updatesOpenRelease]: () => Promise<boolean>;
+  /** Workers do orquestrador observados (só leitura). */
+  [IPC.workersList]: () => WorkersSnapshot;
+  /** Encerra um worker do Codex (grupo de processos). */
+  [IPC.workersStop]: (arg: { id: string }) => boolean;
 }

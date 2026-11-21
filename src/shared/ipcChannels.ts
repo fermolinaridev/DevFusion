@@ -58,6 +58,8 @@ export const IPC = {
   updatesGet: 'updates:get',
   updatesCheck: 'updates:check',
   updatesOpenRelease: 'updates:open-release',
+  workersList: 'workers:list',
+  workersStop: 'workers:stop',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -76,5 +78,6 @@ export const IPC_EVENTS = {
   fsChanged: 'event:fs-changed',
   worktreesChanged: 'event:worktrees-changed',
   updates: 'event:updates',
+  workers: 'event:workers',
 } as const;
 export type IpcEvent = (typeof IPC_EVENTS)[keyof typeof IPC_EVENTS];

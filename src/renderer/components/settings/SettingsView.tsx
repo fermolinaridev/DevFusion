@@ -5,6 +5,7 @@ import { useUpdateStore } from '../../stores/updateStore';
 import { useDoctorStore } from '../../stores/doctorStore';
 import { InstallDialog } from '../system-doctor/InstallDialog';
 import { Button } from '../ui/Modal';
+import { CLAUDE_MODELS, CODEX_MODELS, EFFORTS, EFFORT_LABEL, ORCH_TIERS, TIER_HINT, TIER_LABEL, modelLabel, type OrchestratorSettings } from '@shared/orchestrator';
 
 const THEMES: Array<{ value: Settings['theme']; label: string }> = [
   { value: 'dark', label: 'Escuro' },
@@ -39,6 +40,7 @@ export function SettingsView() {
       </fieldset>
       <MaxRoundsField />
       <PersonalizationFields />
+      <OrchestratorFields />
       <AiMemoryFields />
       <UpdateFields />
       <DiagnosticsFields />
@@ -129,6 +131,54 @@ function PersonalizationFields() {
       </fieldset>
       {error && <p role="alert" className="text-xs text-warn">{error}</p>}
     </>
+  );
+}
+
+function OrchestratorFields() {
+  const o = useAppStore((s) => s.settings.orchestrator);
+  const setSetting = useAppStore((s) => s.setSetting);
+  const [error, setError] = useState<string | null>(null);
+  const save = async (next: OrchestratorSettings) => setError(await setSetting('orchestrator', next));
+  const sel = 'rounded border border-border bg-bg px-1 py-0.5 text-xs';
+  const models = (list: readonly string[]) => list.map((m) => <option key={m} value={m}>{modelLabel(m)}</option>);
+  const efforts = EFFORTS.map((e) => <option key={e} value={e}>{EFFORT_LABEL[e]}</option>);
+  return (
+    <fieldset className="flex flex-col gap-2" data-testid="orchestrator-settings">
+      <legend className="mb-1 text-muted">Dev Orchestrator</legend>
+      <p className="text-xs text-muted">Um agente oficial (Claude Code ou Codex) faz o papel de gerente do projeto e dispara workers com o modelo e o esforço da classe de cada tarefa. O DevFusion só inicia as CLIs com flags oficiais e mostra os workers; aprovações continuam com você. Workers gastam a cota do seu plano. Vale para a próxima vez que o orquestrador iniciar.</p>
+      <div className="grid grid-cols-[auto_1fr_1fr] items-center gap-x-2 gap-y-1 text-xs">
+        <span className="text-muted">Orquestrador</span><span className="text-muted">Claude Code</span><span className="text-muted">Codex</span>
+        <span>modelo · esforço</span>
+        <span className="flex gap-1">
+          <select className={sel} value={o.leadClaude.model} aria-label="Modelo do orquestrador Claude" data-testid="orch-lead-claude-model" onChange={(e) => void save({ ...o, leadClaude: { ...o.leadClaude, model: e.target.value as never } })}>{models(CLAUDE_MODELS)}</select>
+          <select className={sel} value={o.leadClaude.effort} aria-label="Esforço do orquestrador Claude" onChange={(e) => void save({ ...o, leadClaude: { ...o.leadClaude, effort: e.target.value as never } })}>{efforts}</select>
+        </span>
+        <span className="flex gap-1">
+          <select className={sel} value={o.leadCodex.model} aria-label="Modelo do orquestrador Codex" data-testid="orch-lead-codex-model" onChange={(e) => void save({ ...o, leadCodex: { ...o.leadCodex, model: e.target.value as never } })}>{models(CODEX_MODELS)}</select>
+          <select className={sel} value={o.leadCodex.effort} aria-label="Esforço do orquestrador Codex" onChange={(e) => void save({ ...o, leadCodex: { ...o.leadCodex, effort: e.target.value as never } })}>{efforts}</select>
+        </span>
+        <span className="col-span-3 mt-1 text-muted">Workers por classe de tarefa</span>
+        {ORCH_TIERS.map((t) => (
+          <div key={t} className="contents" data-testid={`orch-tier-${t}`}>
+            <span title={TIER_HINT[t]}>{TIER_LABEL[t]}</span>
+            <span className="flex gap-1">
+              <select className={sel} value={o.roster[t].claude.model} aria-label={`Modelo Claude (${TIER_LABEL[t]})`} onChange={(e) => void save({ ...o, roster: { ...o.roster, [t]: { ...o.roster[t], claude: { ...o.roster[t].claude, model: e.target.value } } } as never })}>{models(CLAUDE_MODELS)}</select>
+              <select className={sel} value={o.roster[t].claude.effort} aria-label={`Esforço Claude (${TIER_LABEL[t]})`} onChange={(e) => void save({ ...o, roster: { ...o.roster, [t]: { ...o.roster[t], claude: { ...o.roster[t].claude, effort: e.target.value } } } as never })}>{efforts}</select>
+            </span>
+            <span className="flex gap-1">
+              <select className={sel} value={o.roster[t].codex.model} aria-label={`Modelo Codex (${TIER_LABEL[t]})`} onChange={(e) => void save({ ...o, roster: { ...o.roster, [t]: { ...o.roster[t], codex: { ...o.roster[t].codex, model: e.target.value } } } as never })}>{models(CODEX_MODELS)}</select>
+              <select className={sel} value={o.roster[t].codex.effort} aria-label={`Esforço Codex (${TIER_LABEL[t]})`} onChange={(e) => void save({ ...o, roster: { ...o.roster, [t]: { ...o.roster[t], codex: { ...o.roster[t].codex, effort: e.target.value } } } as never })}>{efforts}</select>
+            </span>
+          </div>
+        ))}
+      </div>
+      <label className="flex items-center gap-2 text-xs">
+        Workers do Codex ao mesmo tempo
+        <input type="number" min={1} max={6} value={o.maxParallel} className="w-14 rounded border border-border bg-bg px-1 py-0.5" data-testid="orch-max-parallel"
+          onChange={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 1 && n <= 6) void save({ ...o, maxParallel: n }); }} />
+      </label>
+      {error && <p className="text-xs text-warn" role="alert">{error}</p>}
+    </fieldset>
   );
 }
 

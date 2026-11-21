@@ -22,7 +22,7 @@ interface AgentState {
   setHasSelection(agent: AgentId, v: boolean): void;
   setPermission(agent: AgentId, p: PermissionPreset): void;
   init(): () => void;
-  start(agent: AgentId, kind: SessionKind): Promise<void>;
+  start(agent: AgentId, kind: SessionKind, orchestrator?: boolean): Promise<void>;
   interrupt(agent: AgentId): Promise<void>;
   stop(agent: AgentId): Promise<void>;
   stopAll(): Promise<void>;
@@ -48,10 +48,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     void unwrap(window.devfusion.workspace.get()).then((workspace) => set({ workspace }));
     return () => { off(); offWs(); };
   },
-  async start(agent, kind) {
+  async start(agent, kind, orchestrator = false) {
     set((s) => ({ errors: { ...s.errors, [agent]: undefined } }));
     const { cols, rows } = terminalSizes[agent];
-    const r = await unwrap(window.devfusion.agents.start(agent, kind, cols, rows, kind === 'agent' ? get().permission[agent] : undefined, kind === 'agent' ? get().location[agent] : null));
+    const r = await unwrap(window.devfusion.agents.start(agent, kind, cols, rows, kind === 'agent' ? get().permission[agent] : undefined, kind === 'agent' ? get().location[agent] : null, kind === 'agent' && orchestrator ? true : undefined));
     if (!r.ok) set((s) => ({ errors: { ...s.errors, [agent]: r.reason } }));
   },
   async interrupt(agent) { await unwrap(window.devfusion.agents.interrupt(agent)); },

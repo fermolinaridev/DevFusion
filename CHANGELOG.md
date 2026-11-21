@@ -2,6 +2,15 @@
 
 Todas as versões foram validadas no macOS (arm64). Windows e Linux passam a ser verificados pelo CI a partir da 0.2.0-beta.1.
 
+## Não lançado — Fase 9 (Dev Orchestrator)
+- Modo **Dev Orchestrator** (macOS/Linux): três colunas, com workers do Claude, o orquestrador e workers do Codex.
+  - O orquestrador é o Claude Code (Opus 5.5, esforço alto) ou o Codex (GPT-6.2-Astra, esforço alto), iniciado com flags oficiais.
+  - Recebe instruções de gerente de projeto e um roster de workers por classe de tarefa (trivial, rotina, complexa, crítica) com modelo e esforço configuráveis.
+  - Workers do Claude são subagentes oficiais (`--agents`). Workers do Codex usam `codex exec --json` por um script gerado, com limite de simultâneos.
+  - O app só observa (hooks oficiais e arquivos de eventos) e mostra os cards. Parar tudo encerra o orquestrador e os workers.
+- ai-memory: `AI_MEMORY_AUTH_TOKEN` é repassado às CLIs quando o usuário o exporta (MCP do ai-memory no Codex). Workers do Codex passam por `ai-memory run` quando a integração está ligada.
+- Teste real opcional do orquestrador (envia prompts): `DEVFUSION_REAL_TESTS=1 DEVFUSION_REAL_PROMPTS=1`.
+
 ## 0.3.0-beta.1 — Fase 8 (distribuição)
 - Instaladores: Windows (NSIS por usuário, sem administrador), macOS (`.dmg` arm64 e x64, assinatura ad-hoc) e Linux (AppImage e `.deb`). Sem assinatura de código; `SHA256SUMS.txt` publicado em cada release.
 - Endurecimento do binário com Electron Fuses: sem `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` e `--inspect`; asar com validação de integridade e carregamento exclusivo.

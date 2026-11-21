@@ -41,6 +41,8 @@ import { DOC_URLS, INSTALL_CATALOG } from './system/InstallCatalog';
 import { PlatformDetector } from './system/PlatformDetector';
 import { probePty } from './terminal/ptyProbe';
 import { aiMemoryRunCommand } from './agents/aiMemory';
+import { claudeLeadArgs, codexLeadArgs, orchestratorPaths, prepareOrchestrator } from './orchestrator/DevOrchestrator';
+import { WorkerMonitor } from './orchestrator/WorkerMonitor';
 import { UpdateChecker } from './updates/UpdateChecker';
 import { configureExternalOpen, openExternalUrl, openLocalPath } from './system/externalOpen';
 import { runCommand } from './system/ProcessRunner';
@@ -72,6 +74,7 @@ if (!app.requestSingleInstanceLock()) {
   let db: Db | null = null;
   let agents: AgentService | null = null;
   let usage: UsageService | null = null;
+  let workerMonitor: WorkerMonitor | null = null;
   let quitting = false;
   /** App encerrando (qualquer motivo): não recarregar o renderer. */
   let appQuitting = false;
@@ -174,8 +177,32 @@ if (!app.requestSingleInstanceLock()) {
       // Fuse RunAsNode está desligada e o executável abriria o app. No Windows, sem Node, não há statusline.
       return process.platform === 'win32' || app.isPackaged ? null : { executable: process.execPath, runAsNodeEnv: true };
     });
+    // Dev Orchestrator (Fase 9): o DevFusion só observa os workers que o agente oficial dispara.
+    const orchPaths = orchestratorPaths(userData);
+    const workers = new WorkerMonitor({ eventsDir: orchPaths.eventsDir, emit: (s) => send(IPC_EVENTS.workers, s), shorten: (p) => detector.shortenHome(p), log });
+    workerMonitor = workers;
     const agentService = new AgentService({
       extraAgentArgs: { claude: () => claudeUsage.settingsArgs() },
+      orchestratorArgs: (agent, cwd) => {
+        if (process.platform === 'win32') throw new Error('O modo orquestrador ainda não está disponível no Windows nesta beta.');
+        const s = settings.getAll();
+        const ctx = {
+          settings: s.orchestrator, ...orchPaths, workspacePath: cwd,
+          codexPath: detector.locate('codex', s.cliPaths.codex).found?.path ?? null,
+          aiMemoryPath: s.aiMemory.runAgents ? detector.locate('ai-memory').found?.path ?? null : null,
+        };
+        prepareOrchestrator(ctx);
+        workers.begin(agent, s.orchestrator);
+        const lead = agent === 'claude' ? s.orchestrator.leadClaude : s.orchestrator.leadCodex;
+        audit.record('orchestrator.start', agent, { model: lead.model, effort: lead.effort, aiMemory: Boolean(ctx.aiMemoryPath) });
+        log.info('Orquestrador iniciando', { lead: agent, model: lead.model, effort: lead.effort, codexWorkers: Boolean(ctx.codexPath), aiMemory: Boolean(ctx.aiMemoryPath) });
+        return agent === 'claude' ? claudeLeadArgs(ctx, claudeUsage.statusLineSetting()) : codexLeadArgs(ctx);
+      },
+      onOrchestratorExit: (agent) => {
+        const stopped = workers.stopAll();
+        workers.end();
+        log.info('Orquestrador encerrado', { lead: agent, workersEncerrados: stopped });
+      },
       // Integração opcional (desligada por padrão): Claude e Codex iniciados via `ai-memory run`.
       wrapAgentLaunch: (agent, exe, args) => {
         if (!settings.getAll().aiMemory.runAgents) return null;
@@ -366,17 +393,19 @@ if (!app.requestSingleInstanceLock()) {
         return openWorkspace(row.path);
       },
       [IPC.agentsList]: () => agentService.list(),
-      [IPC.agentStart]: async ({ agent, kind, cols, rows, permission, worktreeId }) => {
+      [IPC.agentStart]: async ({ agent, kind, cols, rows, permission, worktreeId, orchestrator }) => {
         try {
           let at: { path: string; id: string; name: string } | undefined;
           if (worktreeId) { const ws = requireWs(); const info = await worktrees.get(ws, worktreeId); if (!info.present || info.status === 'removed') throw new GitOpError('Este worktree não está disponível.'); at = { path: worktrees.activePath(ws, worktreeId), id: worktreeId, name: info.name }; }
-          return { ok: true, value: await agentService.start(agent, kind, cols, rows, permission, at) };
+          return { ok: true, value: await agentService.start(agent, kind, cols, rows, permission, at, orchestrator) };
         }
         catch (e) { return { ok: false, reason: (e as Error).message }; }
       },
       [IPC.agentInterrupt]: async ({ agent }) => { await agentService.adapter(agent).interrupt(); },
       [IPC.agentStop]: ({ agent }) => agentService.stop(agent),
-      [IPC.agentsStopAll]: async () => { audit.record('agents.stop-all', null, {}); return agentService.stopAll(); },
+      [IPC.agentsStopAll]: async () => { audit.record('agents.stop-all', null, {}); workers.stopAll(); return agentService.stopAll(); },
+      [IPC.workersList]: () => workers.snapshot(),
+      [IPC.workersStop]: ({ id }) => { audit.record('orchestrator.worker-stop', id, {}); return workers.stopWorker(id); },
       [IPC.terminalWrite]: ({ agent, data }) => agentService.terminals.write(agent, data),
       [IPC.terminalResize]: ({ agent, cols, rows }) => agentService.terminals.resize(agent, cols, rows),
       [IPC.terminalAck]: ({ agent, bytes }) => agentService.terminals.ack(agent, bytes),
@@ -584,12 +613,13 @@ if (!app.requestSingleInstanceLock()) {
   // Nenhum processo de agente pode sobreviver ao app (sem órfãos).
   app.on('before-quit', (event) => {
     appQuitting = true;
-    if (quitting || !agents || !agents.list().some((a) => a.status === 'running')) return;
+    if (quitting || !agents || (!agents.list().some((a) => a.status === 'running') && !workerMonitor?.hasRunning())) return;
     event.preventDefault();
     quitting = true;
+    workerMonitor?.stopAll();
     void agents.stopAll().finally(() => app.quit());
   });
-  app.on('will-quit', () => { usage?.stop(); try { db?.close(); } catch { /* já fechado */ } });
+  app.on('will-quit', () => { usage?.stop(); workerMonitor?.dispose(); try { db?.close(); } catch { /* já fechado */ } });
 }
 
 /** Confirmação final da instalação em diálogo nativo do main (não pode ser forjada pelo renderer). */

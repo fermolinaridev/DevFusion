@@ -33,8 +33,24 @@ Flags verificadas em `crates/ai-memory-cli/src/cli.rs` (`RunArgs`): flags do wra
 | M5 | Agente inicia via `ai-memory run` com binário validado, args nativos e statusline preservados; entrada/saída e Parar tudo funcionam | ✅ | E2E com ai-memory falso que registra o argv e executa o agente |
 | M6 | Ligado mas ausente: erro claro, nada é iniciado | ✅ | E2E |
 
+## Teste real (2026-11-21, macOS arm64, ai-memory 3.5.1)
+Com autorização do usuário: `brew install akitaonrails/tap/ai-memory` e `ai-memory setup --agent claude-code --agent codex --language pt-BR --yes`. Antes do setup foi feito backup de `~/.claude/settings.json`, `~/.claude.json` e `~/.codex/config.toml`. O próprio ai-memory também grava backups ao lado dos arquivos.
+
+| Passo | Resultado |
+|---|---|
+| Setup | ✅ LaunchAgent e servidor em `127.0.0.1:49374` (`healthz` ok). Hooks e MCP gravados em `~/.claude/settings.json` e `~/.codex/config.toml` + `~/.codex/hooks.json`. Skills em `~/.claude/skills` e `~/.agents/skills`. |
+| `status --json` | ✅ exit 0, ou seja, o check do Doctor fica "servidor local respondendo" |
+| Claude via `ai-memory run --no-exit-prompt` (`-p`, Sonnet, esforço baixo) | ✅ corrigiu o bug do repositório de teste e o ai-memory salvou 11 eventos |
+| Codex via `ai-memory run` (`exec`, GPT-6.2-Astra) | ⚠️ executou e o ai-memory salvou 10 eventos, mas o Codex **não recebeu o contexto do Claude**. Aviso: "this harness did not acknowledge its managed context packet" |
+
+Causas do caso do Codex:
+1. O Codex exige **confiança explícita nos hooks novos** ("Hooks need review" na TUI). Isso é feito pelo usuário, uma vez, abrindo o `codex`. O DevFusion não usa `--dangerously-bypass-hook-trust`, pela regra de nunca responder prompts de confiança.
+2. O MCP do ai-memory no Codex lê o token de `AI_MEMORY_AUTH_TOKEN` (`bearer_token_env_var`). **Resolvido na Fase 9** (decisão do usuário): essa variável passou a ser repassada às CLIs quando o usuário a exporta no próprio ambiente. O DevFusion continua sem ler o arquivo do token.
+3. Com `-s read-only` o shell do Codex não alcança o servidor local.
+
 ## Limitações
-- Testado com um ai-memory **simulado** (contrato de argumentos verificado no código-fonte 3.5.1); não instalei o ai-memory real nesta máquina. Recomenda-se um teste manual: instalar, rodar `ai-memory setup`, ligar a opção e alternar Claude → Codex no mesmo projeto.
+- Teste real feito só no macOS. Alternar Claude → Codex depende de dois passos manuais: confiar nos hooks na TUI do Codex e exportar `AI_MEMORY_AUTH_TOKEN` no ambiente de onde o DevFusion é aberto.
+- Com o Dev Orchestrator ([20-FASE9-ORQUESTRADOR.md](20-FASE9-ORQUESTRADOR.md)), os workers do Codex também passam por `ai-memory run` quando a integração está ligada.
 - Windows nativo é experimental no próprio ai-memory; com o Claude instalado via npm (`claude.cmd`) o `--executable` aponta para um `.cmd`.
 - Worktrees: o ai-memory identifica a workstream pelo checkout; cada worktree do DevFusion é uma workstream própria.
 - O DevFusion não mostra o conteúdo da memória; use o `/web` ou os arquivos markdown do ai-memory.

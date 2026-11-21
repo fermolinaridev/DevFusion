@@ -19,6 +19,10 @@ export interface AgentServiceDeps extends Omit<CliAgentDeps, 'terminals' | 'conf
   extraAgentArgs?: Partial<Record<AgentId, () => string[]>>;
   /** Embrulho opcional do lançamento de sessões de agente (integração ai-memory). */
   wrapAgentLaunch?: (agent: AgentId, exe: string, args: string[]) => { file: string; args: string[]; display: string[] } | null;
+  /** Papel de orquestrador (Fase 9): argumentos oficiais da sessão; lança erro se indisponível. */
+  orchestratorArgs?: (agent: AgentId, cwd: string) => string[];
+  /** A sessão de orquestrador terminou (para encerrar workers e parar de observar). */
+  onOrchestratorExit?: (agent: AgentId) => void;
   /** Diagnóstico: chamado quando um processo de agente termina, com o fim da tela. */
   onExitDiagnostics?: (d: { agent: AgentId; kind: SessionKind; exitCode: number; signal: number | null; durationMs: number | null; stoppedByUser: boolean; screenTail: string }) => void;
 }
@@ -52,6 +56,7 @@ export class AgentService {
           screenTail: screenTail(this.terminals.replay(agent)),
         });
         this.adapters[agent].handleExit(exitCode, signal);
+        if (before.role === 'orchestrator' && before.kind === 'agent') deps.onOrchestratorExit?.(agent);
       },
     }, deps.terminalOptions);
     const make = (cfg: typeof CLAUDE_CONFIG) => new CliAgentAdapter(cfg, {
@@ -78,12 +83,18 @@ export class AgentService {
    * Inicia o agente na raiz do workspace ou num worktree (`at`, já validado pelo chamador
    * como worktree ativo do workspace atual).
    */
-  async start(agent: AgentId, kind: SessionKind, cols: number, rows: number, permission: PermissionPreset = 'cli-default', at?: { path: string; id: string; name: string }): Promise<AgentSessionInfo> {
+  async start(agent: AgentId, kind: SessionKind, cols: number, rows: number, permission: PermissionPreset = 'cli-default', at?: { path: string; id: string; name: string }, orchestrator = false): Promise<AgentSessionInfo> {
     const ws = this.deps.workspacePath();
     if (kind === 'agent' && !ws) throw new Error('Selecione um workspace antes de iniciar o agente.');
     const cwd = kind === 'agent' ? (at?.path ?? ws!) : ws ?? homedir();
     const location = kind === 'agent' && at ? { kind: 'worktree' as const, id: at.id, name: at.name } : { kind: 'root' as const };
-    await this.adapters[agent].startSession(cwd, { kind, cols, rows, permission, location });
+    let orchestratorArgs: string[] | undefined;
+    if (kind === 'agent' && orchestrator) {
+      if (!this.deps.orchestratorArgs) throw new Error('O modo orquestrador não está disponível.');
+      if (AGENT_IDS.some((a) => this.terminals.has(a))) throw new Error('Encerre as sessões abertas antes de iniciar o orquestrador.');
+      orchestratorArgs = this.deps.orchestratorArgs(agent, cwd);
+    }
+    await this.adapters[agent].startSession(cwd, { kind, cols, rows, permission, location, orchestratorArgs });
     return this.adapters[agent].snapshot();
   }
 

@@ -35,6 +35,21 @@ export interface CliAgentDeps {
 
 export class PasteNotSafeError extends Error {}
 
+/** Flags cujo valor é longo ou interno (settings, roster, instruções): exibidas como "…". */
+const HIDDEN_VALUE_FLAGS = new Set(['--settings', '--agents', '--append-system-prompt']);
+
+/** Comando para exibição: oculta valores de settings/instruções, mantém modelo e esforço. */
+export function displayArgs(args: readonly string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if (HIDDEN_VALUE_FLAGS.has(a)) { if (a !== '--settings') out.push(a, '…'); i++; continue; }
+    if (a === '-c' && args[i + 1]?.startsWith('developer_instructions=')) { out.push('-c', 'developer_instructions=…'); i++; continue; }
+    out.push(a);
+  }
+  return out;
+}
+
 /** Remove sequências de escape/controle (exceto \n e \t) de texto colado no terminal. */
 export function sanitizePaste(text: string): string {
   return text.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, '');
@@ -48,7 +63,7 @@ export class CliAgentAdapter implements AgentAdapter {
   constructor(private readonly cfg: CliAgentConfig, private readonly deps: CliAgentDeps) {
     this.id = cfg.id;
     this.name = cfg.name;
-    this.info = { agent: cfg.id, kind: 'agent', status: 'idle', permission: 'cli-default', location: { kind: 'root' }, stopping: false, sessionId: null, pid: null, cwd: null, command: null, startedAt: null, endedAt: null, exitCode: null, signal: null, error: null, capabilities: cfg.capabilities };
+    this.info = { agent: cfg.id, kind: 'agent', status: 'idle', permission: 'cli-default', role: 'direct', location: { kind: 'root' }, stopping: false, sessionId: null, pid: null, cwd: null, command: null, startedAt: null, endedAt: null, exitCode: null, signal: null, error: null, capabilities: cfg.capabilities };
   }
 
   snapshot(): AgentSessionInfo { return { ...this.info }; }
@@ -67,7 +82,11 @@ export class CliAgentAdapter implements AgentAdapter {
 
   getStatus(): AgentStatus { return this.info.status; }
 
-  async startSession(cwd: string, opts: { kind: SessionKind; cols: number; rows: number; permission?: PermissionPreset; location?: AgentSessionInfo['location'] }): Promise<void> {
+  /**
+   * `orchestratorArgs`: argumentos oficiais do papel de orquestrador; substituem os extras padrão
+   * (a statusline vai mesclada no mesmo `--settings`).
+   */
+  async startSession(cwd: string, opts: { kind: SessionKind; cols: number; rows: number; permission?: PermissionPreset; location?: AgentSessionInfo['location']; orchestratorArgs?: string[] }): Promise<void> {
     if (this.deps.terminals.has(this.id)) throw new Error(`${this.name} já está em execução.`);
     const { found } = this.deps.detector.locate(this.cfg.tool, this.deps.configuredPath());
     if (!found) {
@@ -75,7 +94,8 @@ export class CliAgentAdapter implements AgentAdapter {
       throw new Error(this.info.error!);
     }
     const permission = opts.kind === 'login' ? 'cli-default' : opts.permission ?? 'cli-default';
-    const args = opts.kind === 'login' ? this.cfg.loginArgs : [...this.cfg.agentArgs, ...this.cfg.permissionArgs[permission], ...(this.deps.extraAgentArgs?.() ?? [])];
+    const role = opts.kind === 'agent' && opts.orchestratorArgs ? 'orchestrator' : 'direct';
+    const args = opts.kind === 'login' ? this.cfg.loginArgs : [...this.cfg.agentArgs, ...this.cfg.permissionArgs[permission], ...(opts.orchestratorArgs ?? this.deps.extraAgentArgs?.() ?? [])];
     const env: NodeJS.ProcessEnv = { ...this.deps.detector.childEnv(), TERM: 'xterm-256color', COLORTERM: 'truecolor' };
     delete env['NO_COLOR'];
     const sessionId = randomUUID();
@@ -85,8 +105,8 @@ export class CliAgentAdapter implements AgentAdapter {
       const pid = this.deps.terminals.start(this.id, { file: cmd.file, args: cmd.args, cwd, env, cols: opts.cols, rows: opts.rows });
       this.cwdReal = cwd;
       this.update({
-        kind: opts.kind, permission, location: opts.location ?? { kind: 'root' }, status: 'running', stopping: false, sessionId, pid, cwd: this.deps.detector.shortenHome(cwd),
-        command: [...(wrapped ? wrapped.display : [this.cfg.tool]), ...args.filter((a, i) => args[i - 1] !== '--settings' && a !== '--settings')].join(' '), startedAt: new Date().toISOString(), endedAt: null, exitCode: null, signal: null, error: null,
+        kind: opts.kind, permission, role, location: opts.location ?? { kind: 'root' }, status: 'running', stopping: false, sessionId, pid, cwd: this.deps.detector.shortenHome(cwd),
+        command: [...(wrapped ? wrapped.display : [this.cfg.tool]), ...displayArgs(args)].join(' '), startedAt: new Date().toISOString(), endedAt: null, exitCode: null, signal: null, error: null,
       });
       this.deps.onSessionCreated?.(sessionId, this.id, opts.kind);
     } catch (e) {

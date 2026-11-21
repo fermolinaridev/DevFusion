@@ -10,6 +10,7 @@ import { useGitStore } from '../../stores/gitStore';
 import { TerminalView, terminalSelection } from '../agents/TerminalView';
 import { OutboundDialog, type OutboundDraft } from '../chat/OutboundDialog';
 import { Button } from '../ui/Modal';
+import { EFFORT_LABEL, modelLabel } from '@shared/orchestrator';
 
 const COLOR: Record<AgentId, string> = { claude: 'text-claude', codex: 'text-codex' };
 const OTHER: Record<AgentId, AgentId> = { claude: 'codex', codex: 'claude' };
@@ -34,7 +35,10 @@ function statusLabel(info: AgentSessionInfo | undefined, installed: boolean | nu
   return 'conta não verificada';
 }
 
-export function AgentPane({ agent }: { agent: AgentId }) {
+/** `orchestrator`: painel central do Dev Orchestrator (Fase 9) — a CLI inicia no papel de gerente. */
+export function AgentPane({ agent, orchestrator = false }: { agent: AgentId; orchestrator?: boolean }) {
+  const orchSettings = useAppStore((s) => s.settings.orchestrator);
+  const leadSlot = agent === 'claude' ? orchSettings.leadClaude : orchSettings.leadCodex;
   const report = useDoctorStore((s) => s.report);
   const info = useAgentStore((s) => s.sessions[agent]);
   const error = useAgentStore((s) => s.errors[agent]);
@@ -54,6 +58,8 @@ export function AgentPane({ agent }: { agent: AgentId }) {
   const auth = resultOf(report, `${agent}-auth`)?.state;
   const installed = tool ? tool.state === 'ok' : null;
   const running = isRunning(info);
+  // Sessão aberta no outro papel (direta × orquestrador) não é controlada por este painel.
+  const otherRole = running && info?.kind === 'agent' && (info.role === 'orchestrator') !== orchestrator;
   const status = statusLabel(info, installed, auth);
   const showTerminal = Boolean(info?.sessionId);
   const other = OTHER[agent];
@@ -68,16 +74,17 @@ export function AgentPane({ agent }: { agent: AgentId }) {
   };
 
   return (
-    <section aria-label={AGENT_NAMES[agent]} data-testid={`agent-pane-${agent}`} className="flex h-full flex-col bg-bg">
+    <section aria-label={orchestrator ? `Orquestrador (${AGENT_NAMES[agent]})` : AGENT_NAMES[agent]} data-testid={orchestrator ? 'orchestrator-pane' : `agent-pane-${agent}`} className="flex h-full flex-col bg-bg">
       {/* Quebra em duas linhas quando o painel fica estreito: nenhum botão some da tela. */}
       <div className="flex min-h-9 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border bg-surface px-3 py-1">
-        <span className={`shrink-0 font-medium whitespace-nowrap ${COLOR[agent]}`}>{AGENT_NAMES[agent]}</span>
+        <span className={`shrink-0 font-medium whitespace-nowrap ${COLOR[agent]}`}>{orchestrator ? `Orquestrador · ${AGENT_NAMES[agent]}` : AGENT_NAMES[agent]}</span>
+        {orchestrator && <span className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-xs" data-testid="orchestrator-model">{modelLabel(leadSlot.model)} · esforço {EFFORT_LABEL[leadSlot.effort]}</span>}
         {tool?.version && <span className="min-w-0 truncate text-xs text-muted" title={tool.version}>{tool.version}</span>}
         <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
           <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-muted" data-testid={`agent-status-${agent}`} title={info?.capabilities.automationNote}>{status}</span>
           {running && info?.kind === 'agent' && info.location.kind === 'worktree' && <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-muted" data-testid={`agent-location-${agent}`}>worktree {info.location.name}</span>}
           {running && info?.kind === 'agent' && info.permission === 'read-only' && <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-muted" data-testid={`agent-permission-${agent}`}>somente leitura</span>}
-          {running && (
+          {running && !orchestrator && (
             <Button key="forward" className="!px-2 !py-0.5 text-xs" disabled={!hasSelection} onClick={openForward} data-testid={`forward-${agent}`}
               title={hasSelection ? `Encaminhar o texto selecionado para ${AGENT_NAMES[other]}` : SELECT_HINT}>Encaminhar →</Button>
           )}
@@ -89,7 +96,7 @@ export function AgentPane({ agent }: { agent: AgentId }) {
             </>
           ) : (
             <>
-              {worktrees.length > 0 && (
+              {!orchestrator && worktrees.length > 0 && (
                 <select key="loc" value={locationId ?? ''} onChange={(e) => setLocation(agent, e.target.value || null)} aria-label="Local de execução"
                   className="max-w-32 rounded border border-border bg-bg px-1 py-0.5 text-xs" title="Onde iniciar o agente: raiz do workspace ou um worktree" data-testid={`location-${agent}`}>
                   <option value="">raiz</option>
@@ -102,7 +109,7 @@ export function AgentPane({ agent }: { agent: AgentId }) {
                 {(Object.keys(PERMISSION_LABEL) as PermissionPreset[]).map((p) => <option key={p} value={p}>{PERMISSION_LABEL[p]}</option>)}
               </select>
               <Button key="login" className="!px-2 !py-0.5 text-xs" disabled={!installed} onClick={() => void start(agent, 'login')} data-testid={`login-start-${agent}`} title="Executa o comando oficial de login da CLI neste terminal">Fazer login</Button>
-              <Button key="start" variant="primary" className="!px-2 !py-0.5 text-xs" disabled={!installed || !workspace} onClick={() => void start(agent, 'agent')} data-testid={`start-${agent}`}>Iniciar</Button>
+              <Button key="start" variant="primary" className="!px-2 !py-0.5 text-xs" disabled={!installed || !workspace || otherRole} onClick={() => void start(agent, 'agent', orchestrator)} data-testid={orchestrator ? 'orchestrator-start' : `start-${agent}`}>{orchestrator ? 'Iniciar orquestrador' : 'Iniciar'}</Button>
             </>
           )}
         </span>
@@ -122,7 +129,10 @@ export function AgentPane({ agent }: { agent: AgentId }) {
                 </>
               )}
               {installed && workspace && auth === 'unauthenticated' && <p>Você ainda não fez login. Clique em “Fazer login”: o comando oficial da CLI roda aqui e abre o navegador.</p>}
-              {installed && workspace && auth !== 'unauthenticated' && <p>Clique em “Iniciar” para abrir a CLI oficial em <span className="font-mono">{workspace.displayPath}</span>.</p>}
+              {installed && workspace && auth !== 'unauthenticated' && !orchestrator && <p>Clique em “Iniciar” para abrir a CLI oficial em <span className="font-mono">{workspace.displayPath}</span>.</p>}
+              {installed && workspace && auth !== 'unauthenticated' && orchestrator && (
+                <p>“Iniciar orquestrador” abre o {AGENT_NAMES[agent]} oficial ({modelLabel(leadSlot.model)}, esforço {EFFORT_LABEL[leadSlot.effort]}) como gerente do projeto em <span className="font-mono">{workspace.displayPath}</span>. Diga o que precisa: ele classifica, dispara os workers (à esquerda e à direita) e reporta. Aprovações continuam com você, aqui no terminal.</p>
+              )}
               <p className="text-xs">{info?.capabilities.automationNote}</p>
             </div>
           </div>

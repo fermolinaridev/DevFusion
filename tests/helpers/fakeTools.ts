@@ -12,7 +12,7 @@ export interface FakeResponse {
   /** Cria outras CLIs falsas no mesmo diretório (simula uma instalação). */
   create?: Record<string, FakeToolSpec>;
   /** Modo interativo (para PTY): eco de linhas, comandos "flood", "env", "exit". */
-  interactive?: { banner?: string; ignoreSigint?: boolean; ignoreSigterm?: boolean; noBracketedPaste?: boolean; mouseTracking?: boolean };
+  interactive?: { banner?: string; ignoreSigint?: boolean; ignoreSigterm?: boolean; noBracketedPaste?: boolean; mouseTracking?: boolean; argvLog?: string };
   /** Servidor JSON-RPC por stdio (simula o App Server): resposta por método e log dos métodos recebidos. */
   jsonrpc?: { results: Record<string, unknown>; errors?: Record<string, string>; logFile?: string; silent?: boolean };
   /** Simula `ai-memory run`: registra o argv e executa o `--executable` com os argumentos nativos. */
@@ -109,6 +109,7 @@ if (r.wrapRun) {
   process.stdin.on('end', () => process.exit(0));
 } else if (r.interactive) {
   const it = r.interactive;
+  if (it.argvLog) fs.writeFileSync(it.argvLog, JSON.stringify(argv));
   // O banner/prompt só é impresso depois que a leitura está configurada (sem corrida com quem digita).
   const banner = () => process.stdout.write((it.banner || 'fake pronto') + '\\r\\n> ');
   process.on('SIGINT', () => { process.stdout.write('[SIGINT]\\r\\n> '); if (!it.ignoreSigint) process.exit(130); });

@@ -31,6 +31,13 @@ describe.skipIf(process.platform === 'win32')('PlatformDetector', () => {
     expect(env['HOME']).toBe('/h');
   });
 
+  it('repassa só o token do ai-memory exportado pelo usuário (MCP do Codex), nenhum outro', () => {
+    const d = new PlatformDetector({ env: { HOME: '/h', PATH: '/usr/bin', AI_MEMORY_AUTH_TOKEN: 'aim-x', GITHUB_TOKEN: 'g', OPENAI_API_KEY: 'sk', CLAUDE_CODE_OAUTH_TOKEN: 't' } });
+    const env = d.childEnv();
+    expect(Object.keys(env).filter((k) => /KEY|TOKEN/.test(k))).toEqual(['AI_MEMORY_AUTH_TOKEN']);
+    expect(new PlatformDetector({ env: { HOME: '/h', PATH: '/usr/bin' } }).childEnv()['AI_MEMORY_AUTH_TOKEN']).toBeUndefined();
+  });
+
   it('repassa servidor gráfico e D-Bus no Linux (login pelo navegador e chaveiro), sem segredos', () => {
     const d = new PlatformDetector({ platform: 'linux', home: '/home/u', env: {
       PATH: '/usr/bin', HOME: '/home/u', DISPLAY: ':99', XAUTHORITY: '/home/u/.Xauthority', WAYLAND_DISPLAY: 'wayland-0',

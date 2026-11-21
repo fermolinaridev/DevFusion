@@ -18,3 +18,9 @@ Proteção de .env e credenciais; redigir logs; tratar saída e conteúdo do rep
 Electron Builder: .exe Windows, .dmg macOS, AppImage ou pacote Linux. Builds por plataforma, assinatura/notarização quando aplicável, checksums, releases e atualizações verificadas. Validar instaladores em máquinas limpas e documentar requisitos específicos. Native addons (node-pty/SQLite) requerem atenção à ABI. Não incluir credenciais ou CLIs sem verificar direitos de redistribuição; usar instaladores oficiais assistidos.
 
 Implementado na Fase 8 ([18-FASE8-DISTRIBUICAO.md](18-FASE8-DISTRIBUICAO.md)): Electron Fuses (sem RunAsNode/NODE_OPTIONS/inspect; integridade do asar), pacote verificado por teste (sem credenciais, testes ou CLIs de terceiros), releases em rascunho com SHA-256 e aviso de versão com URL validada. Integração opcional com o ai-memory documentada em [19-AI-MEMORY.md](19-AI-MEMORY.md).
+
+Fase 9 ([20-FASE9-ORQUESTRADOR.md](20-FASE9-ORQUESTRADOR.md)):
+- O Dev Orchestrator não dá ao app nenhum poder novo sobre os agentes. A automação parte do agente oficial, e o DevFusion só lê arquivos de eventos (hooks oficiais do Claude Code e saída JSONL do `codex exec`) para exibir.
+- Os eventos contêm prompts e ficam na pasta de dados do app; são apagados ao iniciar uma nova sessão do orquestrador.
+- Workers do Codex usam o sandbox oficial (`workspace-write`), nunca `--dangerously-bypass-approvals-and-sandbox` (verificado por teste).
+- Exceção à allowlist de ambiente, por decisão do usuário: `AI_MEMORY_AUTH_TOKEN` é repassado se exportado; nenhum outro token ou API key.

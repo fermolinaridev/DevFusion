@@ -7,6 +7,7 @@ import type { UsageReport } from '../shared/usage';
 import type { ExplorerEntry, GitFileStatus, GitLocation, MergeCheck, RepoStatus, WorktreeInfo } from '../shared/git';
 import type { DashboardData, HistoryOverview, SessionRecord } from '../shared/history';
 import type { UpdateStatus } from '../shared/updates';
+import type { WorkersSnapshot } from '../shared/orchestrator';
 
 export interface DevFusionApi {
   app: {
@@ -43,7 +44,7 @@ export interface DevFusionApi {
   };
   agents: {
     list(): Promise<IpcResult<AgentSessionInfo[]>>;
-    start(agent: AgentId, kind: SessionKind, cols: number, rows: number, permission?: PermissionPreset, worktreeId?: string | null): Promise<IpcResult<ActionResult<AgentSessionInfo>>>;
+    start(agent: AgentId, kind: SessionKind, cols: number, rows: number, permission?: PermissionPreset, worktreeId?: string | null, orchestrator?: boolean): Promise<IpcResult<ActionResult<AgentSessionInfo>>>;
     interrupt(agent: AgentId): Promise<IpcResult<void>>;
     stop(agent: AgentId): Promise<IpcResult<AgentSessionInfo>>;
     stopAll(): Promise<IpcResult<AgentSessionInfo[]>>;
@@ -118,6 +119,12 @@ export interface DevFusionApi {
     check(): Promise<IpcResult<UpdateStatus>>;
     openRelease(): Promise<IpcResult<boolean>>;
     onChanged(cb: (s: UpdateStatus) => void): () => void;
+  };
+  /** Workers do Dev Orchestrator (só leitura; parar só workers do Codex). */
+  workers: {
+    list(): Promise<IpcResult<WorkersSnapshot>>;
+    stop(id: string): Promise<IpcResult<boolean>>;
+    onChanged(cb: (s: WorkersSnapshot) => void): () => void;
   };
 }
 

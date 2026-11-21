@@ -28,6 +28,9 @@ const ENV_ALLOWLIST = [
   'DISPLAY', 'XAUTHORITY', 'WAYLAND_DISPLAY', 'XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS',
   // ai-memory (integração opcional): diretórios XDG onde ficam config/dados e servidor alternativo.
   'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_STATE_HOME', 'AI_MEMORY_SERVER_URL',
+  // Única exceção a "nenhum token": o MCP do ai-memory no Codex lê este nome (`bearer_token_env_var`).
+  // Só é repassado se o próprio usuário o exportou; o DevFusion não lê o arquivo do token nem registra o valor.
+  'AI_MEMORY_AUTH_TOKEN',
 ];
 
 export class PlatformDetector {

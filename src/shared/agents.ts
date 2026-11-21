@@ -29,6 +29,8 @@ export interface AgentSessionInfo {
   status: AgentStatus;
   /** Preset de permissão usado ao iniciar (flags oficiais da CLI). */
   permission: PermissionPreset;
+  /** Sessão direta ou no papel de orquestrador (Fase 9). */
+  role: 'direct' | 'orchestrator';
   /** Onde o processo roda: raiz do workspace ou um worktree. */
   location: { kind: 'root' } | { kind: 'worktree'; id: string; name: string };
   /** Encerramento em andamento (Ctrl‑C → SIGTERM → SIGKILL). */
@@ -60,6 +62,7 @@ export const AgentStartArgsSchema = z
     agent, kind: z.enum(['agent', 'login']), cols: z.number().int().min(2).max(1000), rows: z.number().int().min(2).max(500),
     permission: z.enum(PERMISSION_PRESETS).default('cli-default'),
     worktreeId: z.string().uuid().nullable().default(null),
+    orchestrator: z.boolean().default(false),
   })
   .strict();
 /** Entrada do teclado do xterm (limitada para não travar o PTY). */
