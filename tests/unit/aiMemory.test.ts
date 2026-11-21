@@ -25,6 +25,8 @@ describe('ai-memory run', () => {
   });
 });
 
+// Como nos demais testes do Doctor com CLIs falsas: no Windows o lançador é um .cmd, que exige
+// cmd.exe/ComSpec fora do ambiente mínimo do teste (ainda não validado no Windows).
 describe('check ai-memory do System Doctor', () => {
   let tools: FakeToolDir; let dir: string;
   beforeEach(() => { tools = new FakeToolDir(); dir = mkdtempSync(join(tmpdir(), 'devfusion-aimem-')); });
@@ -42,12 +44,12 @@ describe('check ai-memory do System Doctor', () => {
     expect(CHECKS.find((c) => c.id === 'ai-memory')!.requirement).toBe('optional');
   });
 
-  it('instalado com servidor respondendo', async () => {
+  it.skipIf(process.platform === 'win32')('instalado com servidor respondendo', async () => {
     tools.add('ai-memory', { '--version': { stdout: 'ai-memory 3.5.1\n' }, 'status --json': { stdout: '{"server":"ok"}\n' } });
     expect(await run()).toMatchObject({ state: 'ok', version: 'ai-memory 3.5.1', detail: 'Instalado; servidor local respondendo.' });
   });
 
-  it('instalado sem servidor: orienta rodar `ai-memory setup` no terminal', async () => {
+  it.skipIf(process.platform === 'win32')('instalado sem servidor: orienta rodar `ai-memory setup` no terminal', async () => {
     tools.add('ai-memory', { '--version': { stdout: 'ai-memory 3.5.1\n' }, 'status --json': { stderr: 'server unreachable\n', exitCode: 1 } });
     expect(await run()).toMatchObject({ state: 'unknown', detail: expect.stringContaining('ai-memory setup'), action: { kind: 'open-docs', docId: 'ai-memory' } });
   });
