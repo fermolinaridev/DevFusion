@@ -1,6 +1,6 @@
 # Fase 8 — Distribuição
 
-Status: **implementada no macOS; Windows/Linux dependem do CI** (versão `0.3.0-beta.1`) · Pré-requisito: Fase 7 concluída com CI verde no Windows e no Linux ([17-FASE7-ESTABILIDADE.md](17-FASE7-ESTABILIDADE.md)).
+Status: **implementada; app empacotado testado em macOS, Windows e Linux (CI); instaladores Windows/Linux aguardam a primeira tag** (versão `0.3.0-beta.1`) · Pré-requisito: Fase 7 concluída com CI verde no Windows e no Linux ([17-FASE7-ESTABILIDADE.md](17-FASE7-ESTABILIDADE.md)).
 Roadmap: "Instalador Windows, depois macOS/Linux após testes específicos. README, manual, documentação, GitHub Releases e atualizações verificadas." Referência: [08-SEGURANCA.md](08-SEGURANCA.md) § Distribuição.
 
 ## Inspeção do repositório (início da fase)
@@ -47,7 +47,7 @@ Roadmap: "Instalador Windows, depois macOS/Linux após testes específicos. READ
 | # | Status | Evidência |
 |---|---|---|
 | D1 | ⏳ | `release.yml`: instala o NSIS em silêncio num runner Windows limpo, roda o teste do app instalado e desinstala conferindo arquivo e processo. Roda na primeira tag `v*`. |
-| D2 | ✅ macOS · ⏳ Win/Linux | `tests/package/packaged.spec.ts` (Playwright pela porta de depuração do Chromium, perfil isolado por `--user-data-dir`): Doctor com `pty`/`app-data` ok, renderer sem Node, CSP, variáveis `DEVFUSION_*` ignoradas. Passou no app arm64 e nos dois `.dmg` montados (arm64 e x64 via Rosetta). O CI de todo push agora empacota e roda o mesmo teste no Windows e no Linux. |
+| D2 | ✅ | `tests/package/packaged.spec.ts` (Playwright pela porta de depuração do Chromium, perfil isolado por `--user-data-dir`): Doctor com `pty`/`app-data` ok, renderer sem Node, CSP, variáveis `DEVFUSION_*` ignoradas. Passou no app arm64 e nos dois `.dmg` montados (arm64 e x64 via Rosetta). No CI (commit `89f0c6b`), o app empacotado também passou no mesmo teste no **Windows** e no **Linux**. |
 | D3 | ✅ | Mesmo teste lê as Fuses do binário (`@electron/fuses`) e confirma que `ELECTRON_RUN_AS_NODE=1` não executa código como Node. |
 | D4 | ✅ | Teste lê o índice do asar: só `out/`, `package.json`, `node-pty` e `zod`; nenhum `.env`, mapa, `.pdb`, teste, fonte TS, `poc/` ou docs; binário nativo só da plataforma empacotada. |
 | D5 | ⏳ | `release.yml` cria release **rascunho** com `SHA256SUMS.txt` e notas do CHANGELOG; tag precisa bater com o `package.json`. Ainda não executado. |
