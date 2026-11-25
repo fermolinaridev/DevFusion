@@ -121,6 +121,11 @@ const api: DevFusionApi = Object.freeze({
     stop: (id: unknown) => ipcRenderer.invoke(IPC.workersStop, { id }),
     onChanged: (cb: (s: never) => void) => subscribe(IPC_EVENTS.workers, cb),
   }),
+  budget: Object.freeze({
+    get: () => ipcRenderer.invoke(IPC.budgetGet),
+    restart: () => ipcRenderer.invoke(IPC.budgetRestart),
+    onChanged: (cb: (s: never) => void) => subscribe(IPC_EVENTS.budget, cb),
+  }),
 } as DevFusionApi);
 
 contextBridge.exposeInMainWorld('devfusion', api);

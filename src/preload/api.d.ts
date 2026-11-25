@@ -8,6 +8,7 @@ import type { ExplorerEntry, GitFileStatus, GitLocation, MergeCheck, RepoStatus,
 import type { DashboardData, HistoryOverview, SessionRecord } from '../shared/history';
 import type { UpdateStatus } from '../shared/updates';
 import type { WorkersSnapshot } from '../shared/orchestrator';
+import type { BudgetState } from '../shared/budget';
 
 export interface DevFusionApi {
   app: {
@@ -125,6 +126,12 @@ export interface DevFusionApi {
     list(): Promise<IpcResult<WorkersSnapshot>>;
     stop(id: string): Promise<IpcResult<boolean>>;
     onChanged(cb: (s: WorkersSnapshot) => void): () => void;
+  };
+  /** Limite de gasto semanal (o valor fica em settings.weeklyBudget). */
+  budget: {
+    get(): Promise<IpcResult<BudgetState>>;
+    restart(): Promise<IpcResult<BudgetState>>;
+    onChanged(cb: (s: BudgetState) => void): () => void;
   };
 }
 

@@ -14,6 +14,7 @@ import {
 } from './orchestration';
 import { SETTINGS_SCHEMA, isSettingKey, type Settings } from './settings';
 import type { UsageReport } from './usage';
+import type { BudgetState } from './budget';
 import type { UpdateStatus } from './updates';
 import { WorkerStopArgsSchema, type WorkersSnapshot } from './orchestrator';
 import {
@@ -110,6 +111,8 @@ export const IPC_ARG_SCHEMAS = {
   [IPC.updatesOpenRelease]: z.undefined(),
   [IPC.workersList]: z.undefined(),
   [IPC.workersStop]: WorkerStopArgsSchema,
+  [IPC.budgetGet]: z.undefined(),
+  [IPC.budgetRestart]: z.undefined(),
 } as const;
 
 /** Resultado de ações que podem falhar por motivo esperado (mensagem para o usuário). */
@@ -185,4 +188,8 @@ export interface IpcHandlers {
   [IPC.workersList]: () => WorkersSnapshot;
   /** Encerra um worker do Codex (grupo de processos). */
   [IPC.workersStop]: (arg: { id: string }) => boolean;
+  /** Limite de gasto semanal: contagem atual. */
+  [IPC.budgetGet]: () => BudgetState;
+  /** Recomeça a contagem a partir do uso atual. */
+  [IPC.budgetRestart]: () => Promise<BudgetState>;
 }
