@@ -106,7 +106,7 @@ export class PlatformDetector {
   /** Procura o executável: caminho configurado > PATH de busca > locais oficiais extras. */
   locate(tool: ToolName, configured?: string | null): { found: ToolLocation | null; configuredInvalid: boolean } {
     if (configured) {
-      if (isExecutableFile(configured, this.platform)) return { found: { path: configured, source: 'configured' }, configuredInvalid: false };
+      if (isExecutableFile(configured, this.platform)) return { found: { path: this.nativeBehindNpmShim(tool, configured), source: 'configured' }, configuredInvalid: false };
       return { found: this.locateAuto(tool), configuredInvalid: true };
     }
     return { found: this.locateAuto(tool), configuredInvalid: false };
@@ -118,12 +118,42 @@ export class PlatformDetector {
     for (const dir of this.searchDirs()) {
       for (const ext of exts) {
         const candidate = this.join(dir, tool + ext);
-        if (isExecutableFile(candidate, this.platform)) return { path: candidate, source: knownDirs.has(dir) && !this.inProcessPath(dir) ? 'known-location' : 'PATH' };
+        if (isExecutableFile(candidate, this.platform)) return { path: this.nativeBehindNpmShim(tool, candidate), source: knownDirs.has(dir) && !this.inProcessPath(dir) ? 'known-location' : 'PATH' };
       }
     }
     if (this.usesToolPathOverride()) return null;
     for (const p of this.extraLocations(tool)) if (isExecutableFile(p, this.platform)) return { path: p, source: 'known-location' };
     return null;
+  }
+
+  /**
+   * Windows: o npm instala `claude.cmd`/`codex.cmd`, que só rodam via cmd.exe e não recebem com
+   * segurança argumentos com aspas (ex.: o JSON de `--settings`). Quando o executável oficial do mesmo
+   * pacote está ao lado, usa ele direto; senão mantém o .cmd.
+   */
+  private nativeBehindNpmShim(tool: ToolName, path: string): string {
+    if (this.platform !== 'win32' || !/\.cmd$/i.test(path)) return path;
+    const modules = win32.join(win32.dirname(path), 'node_modules');
+    const candidates: string[] = [];
+    if (tool === 'claude') candidates.push(win32.join(modules, '@anthropic-ai', 'claude-code', 'bin', 'claude.exe'));
+    if (tool === 'codex') {
+      const cpu = arch() === 'arm64' ? 'arm64' : 'x64';
+      const triple = cpu === 'arm64' ? 'aarch64-pc-windows-msvc' : 'x86_64-pc-windows-msvc';
+      for (const base of [win32.join(modules, '@openai', 'codex', 'node_modules'), modules]) candidates.push(win32.join(base, '@openai', `codex-win32-${cpu}`, 'vendor', triple, 'bin', 'codex.exe'));
+    }
+    return candidates.find((c) => isExecutableFile(c, this.platform)) ?? path;
+  }
+
+  /** Windows: `sh.exe` do Git for Windows (o Claude Code também usa o Git Bash). Outras plataformas: `/bin/sh`. */
+  locateSh(gitConfigured?: string | null): string | null {
+    if (this.platform !== 'win32') return '/bin/sh';
+    const git = this.locate('git', gitConfigured).found?.path;
+    const roots = [
+      ...(git ? [win32.dirname(win32.dirname(git))] : []),
+      win32.join(this.env['ProgramFiles'] ?? 'C:\\Program Files', 'Git'),
+      ...(this.env['LOCALAPPDATA'] ? [win32.join(this.env['LOCALAPPDATA'], 'Programs', 'Git')] : []),
+    ];
+    return roots.map((r) => win32.join(r, 'bin', 'sh.exe')).find((p) => isExecutableFile(p, this.platform)) ?? null;
   }
 
   private inProcessPath(dir: string): boolean {

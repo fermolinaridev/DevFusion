@@ -6,13 +6,11 @@ interface Props {
   settings: OrchestratorSettings;
   disabled: boolean;
   disabledTitle?: string;
-  /** O Dev Orchestrator não roda nesta plataforma: a escolha fica salva, sem efeito por enquanto. */
-  unsupported: boolean;
   onChange: (patch: Partial<OrchestratorSettings>) => void;
 }
 
 /** Nível de gasto de tokens e modo Eco, com os modelos que cada classe de tarefa vai usar. */
-export function SpendBar({ settings, disabled, disabledTitle, unsupported, onChange }: Props) {
+export function SpendBar({ settings, disabled, disabledTitle, onChange }: Props) {
   const r = resolveSpend(settings);
   const slot = (s: { model: string; effort: keyof typeof EFFORT_LABEL }) => `${modelLabel(s.model)} (${EFFORT_LABEL[s.effort]})`;
   const btn = (active: boolean) => `rounded px-2 py-0.5 ${active ? 'bg-accent text-accent-contrast' : 'hover:bg-surface-2'} disabled:opacity-50`;
@@ -41,7 +39,6 @@ export function SpendBar({ settings, disabled, disabledTitle, unsupported, onCha
           </tbody>
         </table>
       </details>
-      {unsupported && <span className="text-warn" data-testid="spend-unsupported">A escolha fica salva, mas só terá efeito quando o Dev Orchestrator funcionar no Windows.</span>}
     </div>
   );
 }

@@ -14,8 +14,8 @@ import { claudeLeadArgs, orchestratorPaths, prepareOrchestrator } from '../../sr
 import { WorkerMonitor } from '../../src/main/orchestrator/WorkerMonitor';
 import { PlatformDetector } from '../../src/main/system/PlatformDetector';
 
-const enabled = process.env['DEVFUSION_REAL_PROMPTS'] === '1' && process.platform !== 'win32';
-const detector = new PlatformDetector({ env: { HOME: process.env['HOME'], USER: process.env['USER'], PATH: '/usr/bin:/bin', LANG: process.env['LANG'] } });
+const enabled = process.env['DEVFUSION_REAL_PROMPTS'] === '1';
+const detector = process.platform === 'win32' ? new PlatformDetector() : new PlatformDetector({ env: { HOME: process.env['HOME'], USER: process.env['USER'], PATH: '/usr/bin:/bin', LANG: process.env['LANG'] } });
 
 describe.skipIf(!enabled)('Dev Orchestrator com CLIs reais (envia prompts)', () => {
   it('o líder Claude dispara um subagente do roster e um worker do Codex; o DevFusion observa os dois', async () => {
@@ -29,7 +29,7 @@ describe.skipIf(!enabled)('Dev Orchestrator com CLIs reais (envia prompts)', () 
     execFileSync('git', ['-C', ws, 'add', '.']);
     execFileSync('git', ['-C', ws, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'calc']);
     const settings: OrchestratorSettings = { ...DEFAULT_ORCHESTRATOR, leadClaude: { model: 'claude-sonnet-5-5', effort: 'low' } };
-    const ctx = { settings, ...orchestratorPaths(join(root, 'userData')), workspacePath: ws, codexPath: codex!, aiMemoryPath: null };
+    const ctx = { settings, ...orchestratorPaths(join(root, 'userData')), workspacePath: ws, codexPath: codex!, aiMemoryPath: null, shPath: detector.locateSh() };
     prepareOrchestrator(ctx);
     const monitor = new WorkerMonitor({ eventsDir: ctx.eventsDir, emit: () => undefined, shorten: (p) => p });
     monitor.begin('claude', settings);
@@ -55,6 +55,7 @@ describe.skipIf(!enabled)('Dev Orchestrator com CLIs reais (envia prompts)', () 
     const xw = snap.workers.find((w) => w.provider === 'codex');
     expect(xw).toMatchObject({ tier: 'trivial', model: 'gpt-6.2-sol', effort: 'low', status: 'completed' });
     expect(readFileSync(join(ws, 'calc.py'), 'utf8')).toContain('a + b');
-    rmSync(root, { recursive: true, force: true });
+    // No Windows o preparo do sandbox do Codex pode segurar a pasta por um tempo: limpeza é melhor esforço.
+    try { rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 }); } catch { /* pasta temporária */ }
   }, 600_000);
 });

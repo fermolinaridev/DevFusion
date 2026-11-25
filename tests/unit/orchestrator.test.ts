@@ -4,9 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_ORCHESTRATOR, type OrchestratorSettings, type WorkersSnapshot } from '../../src/shared/orchestrator';
-import { claudeEventHooks, claudeLeadArgs, codexLeadArgs, orchestratorPaths, prepareOrchestrator, type OrchestratorContext } from '../../src/main/orchestrator/DevOrchestrator';
+import { claudeEventHooks, claudeLeadArgs, codexLeadArgs, codexWorkerScript, orchestratorInstructions, orchestratorPaths, prepareOrchestrator, type OrchestratorContext } from '../../src/main/orchestrator/DevOrchestrator';
 import { WorkerMonitor } from '../../src/main/orchestrator/WorkerMonitor';
 import { displayArgs } from '../../src/main/agents/CliAgentAdapter';
+import { PlatformDetector } from '../../src/main/system/PlatformDetector';
 
 let root: string;
 const ctxFor = (over: Partial<OrchestratorContext> = {}, settings: OrchestratorSettings = DEFAULT_ORCHESTRATOR): OrchestratorContext => ({
@@ -15,7 +16,39 @@ const ctxFor = (over: Partial<OrchestratorContext> = {}, settings: OrchestratorS
 beforeEach(() => { root = mkdtempSync(join(tmpdir(), 'devfusion-orch-')); mkdirSync(join(root, 'proj')); mkdirSync(join(root, 'bin')); });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
+const WIN = process.platform === 'win32';
+/** sh real: `/bin/sh`, ou o do Git for Windows (o mesmo que o app usa). */
+const SH = new PlatformDetector().locateSh() ?? '/bin/sh';
+const shEnv = (extra: NodeJS.ProcessEnv): NodeJS.ProcessEnv => ({ ...(WIN ? process.env : { PATH: '/usr/bin:/bin' }), ...extra });
+/** Caminho como o script o repassa às CLIs (barras normais no Windows). */
+const sp = (p: string) => (WIN ? p.replace(/\\/g, '/') : p);
+
 const valueOf = (args: string[], flag: string) => args[args.indexOf(flag) + 1]!;
+
+describe('Dev Orchestrator no Windows (gerado, sem executar)', () => {
+  const win = (): OrchestratorContext => ctxFor({
+    platform: 'win32', shPath: 'C:\\Program Files\\Git\\bin\\sh.exe', codexPath: 'C:\\npm\\codex.exe', workspacePath: 'C:\\proj',
+    eventsDir: "C:\\Users\\D'Ávila\\ev", scriptPath: 'C:\\Users\\u v\\w.sh', worktreesDir: 'C:\\wt',
+  });
+  it('hooks e script usam barras normais, PID do Windows e taskkill', () => {
+    const s = codexWorkerScript(win());
+    expect(s).toContain("EV='C:/Users/D'\\''Ávila/ev'");
+    expect(s).toContain("CODEX='C:/npm/codex.exe'");
+    expect(s).toContain('/proc/$pid/winpid');
+    expect(s).toContain('taskkill /PID "$wpid" /T /F');
+    expect(s).toContain('export MSYS_NO_PATHCONV=1');
+    expect(JSON.stringify(claudeEventHooks('C:\\ev', 'win32'))).toContain("cat > 'C:/ev'/c-");
+  });
+  it('líder Claude chama pelo Git Bash; líder Codex pelo PowerShell com o caminho do sh', () => {
+    expect(orchestratorInstructions(win(), 'claude')).toContain("`sh 'C:/Users/u v/w.sh' <classe> <pasta> '<tarefa>'`");
+    expect(orchestratorInstructions(win(), 'codex')).toContain("`& 'C:\\Program Files\\Git\\bin\\sh.exe' 'C:/Users/u v/w.sh' <classe> '<pasta>' '<tarefa>'`");
+  });
+  it('o script das outras plataformas não muda', () => {
+    const s = codexWorkerScript({ ...win(), platform: 'linux' });
+    expect(s).not.toMatch(/taskkill|cygpath|MSYS|spid/);
+    expect(s).toContain('kill -TERM -- -$pid');
+  });
+});
 
 describe('Dev Orchestrator: argumentos oficiais do orquestrador', () => {
   it('Claude: modelo/esforço do líder, roster como subagentes oficiais e hooks no mesmo --settings da statusline', () => {
@@ -55,7 +88,7 @@ describe('Dev Orchestrator: argumentos oficiais do orquestrador', () => {
 });
 
 const run = (file: string, args: string[], env: NodeJS.ProcessEnv = {}) => new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
-  execFile(file, args, { env: { PATH: '/usr/bin:/bin', ...env }, timeout: 20_000 }, (err, stdout, stderr) => resolve({ code: err ? (typeof err.code === 'number' ? err.code : 1) : 0, stdout, stderr }));
+  execFile(file, args, { env: shEnv(env), timeout: 20_000 }, (err, stdout, stderr) => resolve({ code: err ? (typeof err.code === 'number' ? err.code : 1) : 0, stdout, stderr }));
 });
 const waitFor = async (fn: () => boolean, ms = 10_000) => { const end = Date.now() + ms; while (!fn()) { if (Date.now() > end) throw new Error('timeout'); await new Promise((r) => setTimeout(r, 50)); } };
 
@@ -73,7 +106,7 @@ echo '{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":5}}'
 printf 'feito: %s' "$last" > "$out"
 `;
 
-describe.skipIf(process.platform === 'win32')('Dev Orchestrator: script do worker do Codex e monitor', () => {
+describe('Dev Orchestrator: script do worker do Codex e monitor', { timeout: 40_000 }, () => {
   let snaps: WorkersSnapshot[];
   let monitor: WorkerMonitor;
   let ctx: OrchestratorContext;
@@ -91,34 +124,34 @@ describe.skipIf(process.platform === 'win32')('Dev Orchestrator: script do worke
   afterEach(() => { monitor.stopAll(); monitor.dispose(); });
 
   it('dispara `codex exec --json` com modelo/esforço da classe e o monitor mostra o resultado', async () => {
-    const r = await run('/bin/sh', [ctx.scriptPath, 'complexa', ctx.workspacePath, "implementar 'login'"], { ARGV_LOG: argvLog });
+    const r = await run(SH, [ctx.scriptPath, 'complexa', ctx.workspacePath, "implementar 'login'"], { ARGV_LOG: argvLog });
     expect(r.code).toBe(0);
     expect(r.stdout).toContain('(complexa, gpt-6.2-astra, esforço high) terminou com código 0');
     expect(r.stdout).toContain("feito: implementar 'login'");
     const argv = readFileSync(argvLog, 'utf8').trim().split('\n');
     expect(argv.slice(0, 7)).toEqual(['exec', '--json', '--skip-git-repo-check', '-m', 'gpt-6.2-astra', '-c', 'model_reasoning_effort=high']);
-    expect(argv).toEqual(expect.arrayContaining(['-s', 'workspace-write', '-C', ctx.workspacePath]));
+    expect(argv).toEqual(expect.arrayContaining(['-s', 'workspace-write', '-C', sp(ctx.workspacePath)]));
     expect(argv).not.toContain('--dangerously-bypass-approvals-and-sandbox');
     const [w] = monitor.refresh().workers;
-    expect(w).toMatchObject({ provider: 'codex', tier: 'complexa', model: 'gpt-6.2-astra', effort: 'high', status: 'completed', task: "implementar 'login'", tokens: { input: 10, output: 5 }, cwd: '~/proj' });
+    expect(w).toMatchObject({ provider: 'codex', tier: 'complexa', model: 'gpt-6.2-astra', effort: 'high', status: 'completed', task: "implementar 'login'", tokens: { input: 10, output: 5 }, cwd: WIN ? '~\\proj' : '~/proj' });
     expect(w!.output).toBe("feito: implementar 'login'");
   });
 
   it('falha do worker aparece com o erro; classe inválida e pasta inexistente são recusadas', async () => {
-    expect((await run('/bin/sh', [ctx.scriptPath, 'trivial', ctx.workspacePath, 'falhar agora'], { ARGV_LOG: argvLog })).code).toBe(1);
+    expect((await run(SH, [ctx.scriptPath, 'trivial', ctx.workspacePath, 'falhar agora'], { ARGV_LOG: argvLog })).code).toBe(1);
     const [w] = monitor.refresh().workers;
     expect(w).toMatchObject({ status: 'failed', model: 'gpt-6.2-sol', effort: 'low', output: 'modelo recusou' });
-    const bad = await run('/bin/sh', [ctx.scriptPath, 'urgente', ctx.workspacePath, 'x'], { ARGV_LOG: argvLog });
+    const bad = await run(SH, [ctx.scriptPath, 'urgente', ctx.workspacePath, 'x'], { ARGV_LOG: argvLog });
     expect(bad.code).toBe(2); expect(bad.stderr).toContain('classe inválida');
-    expect((await run('/bin/sh', [ctx.scriptPath, 'trivial', join(root, 'nao-existe'), 'x'], { ARGV_LOG: argvLog })).code).toBe(2);
+    expect((await run(SH, [ctx.scriptPath, 'trivial', join(root, 'nao-existe'), 'x'], { ARGV_LOG: argvLog })).code).toBe(2);
   });
 
   it('limite de workers simultâneos e Parar tudo encerra o worker (sem processo restante)', async () => {
-    const child = spawn('/bin/sh', [ctx.scriptPath, 'rotina', ctx.workspacePath, 'dormir'], { env: { PATH: '/usr/bin:/bin', ARGV_LOG: argvLog }, stdio: 'ignore' });
+    const child = spawn(SH, [ctx.scriptPath, 'rotina', ctx.workspacePath, 'dormir'], { env: shEnv({ ARGV_LOG: argvLog }), stdio: 'ignore' });
     const exited = new Promise<number | null>((r) => child.on('exit', (c) => r(c)));
     await waitFor(() => readdirSync(ctx.eventsDir).some((f) => f.endsWith('.pid')));
     await waitFor(() => monitor.refresh().workers[0]?.activity === '$ sleep 30');
-    const second = await run('/bin/sh', [ctx.scriptPath, 'trivial', ctx.workspacePath, 'outra'], { ARGV_LOG: argvLog });
+    const second = await run(SH, [ctx.scriptPath, 'trivial', ctx.workspacePath, 'outra'], { ARGV_LOG: argvLog });
     expect(second.code).toBe(3); expect(second.stderr).toContain('limite de 1 workers');
     const pid = Number(readFileSync(join(ctx.eventsDir, readdirSync(ctx.eventsDir).find((f) => f.endsWith('.pid'))!), 'utf8'));
     expect(monitor.hasRunning()).toBe(true);
@@ -129,15 +162,22 @@ describe.skipIf(process.platform === 'win32')('Dev Orchestrator: script do worke
     expect(monitor.hasRunning()).toBe(false);
   });
 
+  it('tarefa com acentos, barra inicial, cifrão e crase chega intacta ao Codex', async () => {
+    const task = '/login: ação não é $HOME nem `date`; 50% & <tag>';
+    expect((await run(SH, [ctx.scriptPath, 'trivial', ctx.workspacePath, task], { ARGV_LOG: argvLog })).code).toBe(0);
+    expect(readFileSync(argvLog, 'utf8').trim().split('\n').at(-1)).toBe(task);
+    expect(monitor.refresh().workers[0]!.task).toBe(task);
+  });
+
   it('com ai-memory: o worker passa por `ai-memory run --no-exit-prompt --executable <codex> codex exec …`', async () => {
     const mem = join(root, 'bin', 'ai-memory');
     writeFileSync(mem, `#!/bin/sh\nprintf '%s\\n' "$@" > "$MEM_LOG"\nshift 4\nshift\nexec "$CODEX_BIN" "$@"\n`); chmodSync(mem, 0o755);
     const c2 = ctxFor({ aiMemoryPath: mem });
     prepareOrchestrator(c2);
     const memLog = join(root, 'mem.txt');
-    const r = await run('/bin/sh', [c2.scriptPath, 'trivial', c2.workspacePath, 'oi'], { ARGV_LOG: argvLog, MEM_LOG: memLog, CODEX_BIN: c2.codexPath! });
+    const r = await run(SH, [c2.scriptPath, 'trivial', c2.workspacePath, 'oi'], { ARGV_LOG: argvLog, MEM_LOG: memLog, CODEX_BIN: c2.codexPath! });
     expect(r.code).toBe(0);
-    expect(readFileSync(memLog, 'utf8').trim().split('\n').slice(0, 7)).toEqual(['run', '--no-exit-prompt', '--executable', c2.codexPath, 'codex', 'exec', '--json']);
+    expect(readFileSync(memLog, 'utf8').trim().split('\n').slice(0, 7)).toEqual(['run', '--no-exit-prompt', '--executable', sp(c2.codexPath!), 'codex', 'exec', '--json']);
   });
 
   it('hooks oficiais do Claude: o comando grava o evento e o monitor monta o worker do roster', async () => {
@@ -145,7 +185,7 @@ describe.skipIf(process.platform === 'win32')('Dev Orchestrator: script do worke
     const cmd = hooks['SubagentStart']![0]!.hooks[0]!.command;
     const fire = async (payload: object) => {
       await new Promise<void>((resolve, reject) => {
-        const p = spawn('/bin/sh', ['-c', cmd], { stdio: ['pipe', 'ignore', 'inherit'] });
+        const p = spawn(SH, ['-c', cmd], { stdio: ['pipe', 'ignore', 'inherit'] });
         p.on('exit', (c) => (c === 0 ? resolve() : reject(new Error(`hook saiu com ${c}`))));
         p.stdin.end(JSON.stringify(payload));
       });

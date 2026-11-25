@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { arch, tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PlatformDetector } from '../../src/main/system/PlatformDetector';
 import { FakeToolDir, SPECS } from '../helpers/fakeTools';
@@ -66,5 +69,39 @@ describe('PlatformDetector (Windows, sem executar)', () => {
       'C:\\Users\\u\\AppData\\Local\\Programs\\ai-memory',
     ]);
     expect(d.childEnv()['PATH']!.split(';')[0]).toBe('C:\\Windows');
+  });
+});
+
+describe.skipIf(process.platform !== 'win32')('PlatformDetector (Windows, npm e Git Bash)', () => {
+  let dir: string;
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+  const put = (...parts: string[]) => { const p = join(dir, ...parts); mkdirSync(dirname(p), { recursive: true }); writeFileSync(p, ''); return p; };
+  const cpu = arch() === 'arm64' ? 'arm64' : 'x64';
+  const triple = cpu === 'arm64' ? 'aarch64-pc-windows-msvc' : 'x86_64-pc-windows-msvc';
+
+  it('claude.cmd e codex.cmd do npm resolvem para o executável oficial do pacote', () => {
+    dir = mkdtempSync(join(tmpdir(), 'devfusion-npm-'));
+    const cmd = put('claude.cmd'); put('codex.cmd');
+    const claude = put('node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe');
+    const codex = put('node_modules', '@openai', 'codex', 'node_modules', '@openai', `codex-win32-${cpu}`, 'vendor', triple, 'bin', 'codex.exe');
+    const d = new PlatformDetector({ env: { DEVFUSION_TOOL_PATH: dir } });
+    expect(d.locate('claude').found?.path).toBe(claude);
+    expect(d.locate('codex').found?.path).toBe(codex);
+    expect(d.locate('claude', cmd).found).toEqual({ path: claude, source: 'configured' });
+  });
+
+  it('sem o executável ao lado, mantém o .cmd; outras ferramentas não mudam', () => {
+    dir = mkdtempSync(join(tmpdir(), 'devfusion-npm-'));
+    const cmd = put('claude.cmd'); const npm = put('npm.cmd');
+    const d = new PlatformDetector({ env: { DEVFUSION_TOOL_PATH: dir } });
+    expect(d.locate('claude').found?.path).toBe(cmd);
+    expect(d.locate('npm').found?.path).toBe(npm);
+  });
+
+  it('acha o sh do Git for Windows a partir do git configurado', () => {
+    dir = mkdtempSync(join(tmpdir(), 'devfusion-git-'));
+    const git = put('Git', 'cmd', 'git.exe'); const sh = put('Git', 'bin', 'sh.exe');
+    expect(new PlatformDetector({ env: { DEVFUSION_TOOL_PATH: dir, ProgramFiles: join(dir, 'nada') } }).locateSh(git)).toBe(sh);
+    expect(new PlatformDetector({ env: { DEVFUSION_TOOL_PATH: dir, ProgramFiles: join(dir, 'nada') } }).locateSh()).toBeNull();
   });
 });

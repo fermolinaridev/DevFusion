@@ -24,11 +24,20 @@ export interface OrchestratorContext {
   /** Pasta para worktrees de workers em paralelo. */
   worktreesDir: string;
   workspacePath: string;
+  /** Windows: `sh.exe` do Git for Windows. Nas outras plataformas não é usado. */
+  shPath?: string | null;
+  /** Padrão: plataforma atual (injetável para testes). */
+  platform?: NodeJS.Platform;
   /** Caminho validado do Codex (null = workers do Codex indisponíveis). */
   codexPath: string | null;
   /** ai-memory ligado e encontrado: workers do Codex também passam por `ai-memory run`. */
   aiMemoryPath: string | null;
 }
+
+const isWin = (p: NodeJS.Platform | undefined) => (p ?? process.platform) === 'win32';
+/** Caminho entre aspas para o sh. No Git Bash, barras normais (`C:/…`) funcionam em todo lugar. */
+const shPathQuote = (path: string, platform?: NodeJS.Platform) => shellQuote(isWin(platform) ? path.replace(/\\/g, '/') : path);
+const psQuote = (s: string) => `'${s.replace(/'/g, "''")}'`;
 
 export const claudeWorkerName = (tier: OrchTier) => `claude-${tier}`;
 
@@ -53,23 +62,27 @@ export function claudeWorkerAgents(s: OrchestratorSettings): Record<string, { de
 }
 
 /** Hooks oficiais do Claude Code: cada evento vira um arquivo JSON (só leitura pelo DevFusion). */
-export function claudeEventHooks(eventsDir: string): Record<string, unknown> {
-  const cmd = `cat > ${shellQuote(eventsDir)}/c-$(date +%s)-$$.json`;
+export function claudeEventHooks(eventsDir: string, platform?: NodeJS.Platform): Record<string, unknown> {
+  const cmd = `cat > ${shPathQuote(eventsDir, platform)}/c-$(date +%s)-$$.json`;
   const entry = (matcher?: string) => [{ ...(matcher ? { matcher } : {}), hooks: [{ type: 'command', command: cmd }] }];
   return { SubagentStart: entry(), SubagentStop: entry(), PreToolUse: entry('Agent|Task'), PostToolUse: entry('Agent|Task') };
 }
 
-/** Script POSIX que dispara um worker do Codex. Gerado a cada início do orquestrador. */
+/** Script sh que dispara um worker do Codex (no Windows, pelo Git Bash). Gerado a cada início do orquestrador. */
 export function codexWorkerScript(ctx: OrchestratorContext): string {
   const cases = ORCH_TIERS.map((t) => `  ${t}) model=${ctx.settings.roster[t].codex.model}; effort=${ctx.settings.roster[t].codex.effort} ;;`).join('\n');
+  const win = isWin(ctx.platform);
+  const q = (p: string) => shPathQuote(p, ctx.platform);
+  // Windows: `.pid` é o PID do Windows (o app encerra com taskkill) e `.spid` o do Git Bash (contagem no script).
+  const livePid = win ? 'spid' : 'pid';
   const exec = `exec --json --skip-git-repo-check -m "$model" -c "model_reasoning_effort=$effort" -s workspace-write -C "$dir" -o "$b.last" "$task" > "$b.jsonl" 2> "$b.err" < /dev/null &`;
   return `#!/bin/sh
 # DevFusion — worker do Codex disparado pelo orquestrador (gerado pelo app a cada sessão; não editar).
 # Uso: sh <este script> <trivial|rotina|complexa|critica> <pasta> <tarefa>
 set -u
-EV=${shellQuote(ctx.eventsDir)}
-CODEX=${shellQuote(ctx.codexPath ?? '')}
-AIMEM=${shellQuote(ctx.aiMemoryPath ?? '')}
+EV=${q(ctx.eventsDir)}
+CODEX=${q(ctx.codexPath ?? '')}
+AIMEM=${q(ctx.aiMemoryPath ?? '')}
 MAX=${ctx.settings.maxParallel}
 if [ $# -lt 3 ]; then echo "uso: sh $0 <trivial|rotina|complexa|critica> <pasta> <tarefa>" >&2; exit 2; fi
 if [ -z "$CODEX" ]; then echo "DevFusion: o Codex não foi encontrado pelo System Doctor." >&2; exit 2; fi
@@ -78,12 +91,15 @@ case "$tier" in
 ${cases}
   *) echo "DevFusion: classe inválida '$tier' (use trivial, rotina, complexa ou critica)" >&2; exit 2 ;;
 esac
-if [ ! -d "$dir" ]; then echo "DevFusion: a pasta não existe: $dir" >&2; exit 2; fi
+${win ? `# Sem conversão automática de caminhos: uma tarefa como "/login" chega intacta ao Codex.
+export MSYS_NO_PATHCONV=1
+dir=$(cygpath -m "$dir")
+` : ''}if [ ! -d "$dir" ]; then echo "DevFusion: a pasta não existe: $dir" >&2; exit 2; fi
 mkdir -p "$EV"
 n=0
-for f in "$EV"/codex-*.pid; do
+for f in "$EV"/codex-*.${livePid}; do
   [ -f "$f" ] || continue
-  [ -f "\${f%.pid}.exit" ] && continue
+  [ -f "\${f%.${livePid}}.exit" ] && continue
   kill -0 "$(cat "$f")" 2>/dev/null && n=$((n + 1))
 done
 if [ "$n" -ge "$MAX" ]; then echo "DevFusion: limite de $MAX workers do Codex ao mesmo tempo. Espere um terminar e tente de novo." >&2; exit 3; fi
@@ -100,8 +116,16 @@ else
   "$CODEX" ${exec}
 fi
 pid=$!
-echo "$pid" > "$b.pid"
-trap 'kill -TERM -- -$pid 2>/dev/null || kill -TERM $pid 2>/dev/null' INT TERM HUP
+${win ? `echo "$pid" > "$b.spid"
+# Espera o executável nativo assumir o processo antes de anotar o PID do Windows.
+i=0
+while [ $i -lt 10 ]; do
+  case "$(cat "/proc/$pid/exename" 2>/dev/null)" in */sh|*/sh.exe|*/bash|*/bash.exe) sleep 0.2; i=$((i + 1)) ;; *) break ;; esac
+done
+wpid=$(cat "/proc/$pid/winpid" 2>/dev/null)
+[ -n "$wpid" ] && echo "$wpid" > "$b.pid"
+trap '[ -n "$wpid" ] && taskkill /PID "$wpid" /T /F > /dev/null 2>&1' INT TERM HUP` : `echo "$pid" > "$b.pid"
+trap 'kill -TERM -- -$pid 2>/dev/null || kill -TERM $pid 2>/dev/null' INT TERM HUP`}
 wait "$pid"
 code=$?
 echo "$code" > "$b.exit"
@@ -128,7 +152,11 @@ function spendInstructions(s: OrchestratorSettings): string[] {
 export function orchestratorInstructions(ctx: OrchestratorContext, lead: AgentId): string {
   const s = ctx.settings;
   const rows = ORCH_TIERS.map((t) => `| ${TIER_LABEL[t]} | ${TIER_HINT[t]} | ${lead === 'claude' ? `subagente \`${claudeWorkerName(t)}\` (${modelLabel(s.roster[t].claude.model)}, ${EFFORT_LABEL[s.roster[t].claude.effort]})` : '—'} | ${modelLabel(s.roster[t].codex.model)}, ${EFFORT_LABEL[s.roster[t].codex.effort]} |`).join('\n');
-  const codexCmd = `sh ${shellQuote(ctx.scriptPath)} <classe> <pasta> '<tarefa>'`;
+  const win = isWin(ctx.platform);
+  // O Claude Code usa o Git Bash no Windows; o Codex usa o PowerShell, que precisa do caminho do sh.
+  const codexCmd = win && lead === 'codex' && ctx.shPath
+    ? `& ${psQuote(ctx.shPath)} ${psQuote(ctx.scriptPath.replace(/\\/g, '/'))} <classe> '<pasta>' '<tarefa>'`
+    : `sh ${shPathQuote(ctx.scriptPath, ctx.platform)} <classe> <pasta> '<tarefa>'`;
   return [
     '# DevFusion — Dev Orchestrator',
     'Você é o orquestrador (gerente de projeto) desta sessão do DevFusion. O usuário conversa com você; você planeja, divide o trabalho, distribui para workers com o modelo e o esforço certos, acompanha, integra os resultados e reporta.',
@@ -137,7 +165,7 @@ export function orchestratorInstructions(ctx: OrchestratorContext, lead: AgentId
     '- Classifique cada tarefa antes de delegar. Use o worker mais barato que resolve; suba de classe só se o resultado não for bom o bastante.',
     '- Você pode ler o código e planejar. Implementação, testes e revisões vão para workers.',
     '- Implementação e revisão por provedores diferentes quando possível (revisão cruzada). A classe "crítica" exige revisão cruzada.',
-    `- No máximo ${s.maxParallel} workers ao mesmo tempo. Workers que escrevem em paralelo precisam de worktrees separados: \`git worktree add ${shellQuote(ctx.worktreesDir)}/<nome> -b devfusion/<nome>\`. Um worker por pasta. Workers de leitura podem compartilhar a pasta.`,
+    `- No máximo ${s.maxParallel} workers ao mesmo tempo. Workers que escrevem em paralelo precisam de worktrees separados: \`git worktree add ${shPathQuote(ctx.worktreesDir, ctx.platform)}/<nome> -b devfusion/<nome>\`. Um worker por pasta. Workers de leitura podem compartilhar a pasta.`,
     '- Nunca faça (nem peça a workers) commit na branch principal, push, merge, reset, rebase, apagar branch ou qualquer operação destrutiva sem o usuário pedir. Integrar worktrees é decisão do usuário: mostre o diff e pergunte.',
     '- Antes de iniciar um plano com mais de 3 workers ou com tarefa crítica, apresente o plano e espere o ok do usuário.',
     '- Aprovações de permissão aparecem no terminal; quem responde é o usuário. Não tente contorná-las.',
@@ -154,7 +182,7 @@ export function orchestratorInstructions(ctx: OrchestratorContext, lead: AgentId
       ? `- Claude: ferramenta Agent com \`subagent_type\` = \`claude-<classe>\` (ex.: \`${claudeWorkerName('trivial')}\`). Diga na tarefa a pasta onde trabalhar.`
       : '- Workers do Claude não estão disponíveis com o Codex como orquestrador (decisão de termos do DevFusion). Para usar o Claude, o usuário troca o orquestrador para o Claude Code.',
     ctx.codexPath
-      ? `- Codex: \`${codexCmd}\`, com <classe> = trivial | rotina | complexa | critica. A saída final do worker é impressa no fim. ${lead === 'claude' ? 'Use `run_in_background` no Bash para tarefas longas e leia o resultado quando terminar.' : 'Esse comando precisa rodar fora do sandbox (rede e pasta de eventos do DevFusion): peça a aprovação ao usuário quando a CLI solicitar.'} Escape aspas simples na tarefa.`
+      ? `- Codex: \`${codexCmd}\`, com <classe> = trivial | rotina | complexa | critica. A saída final do worker é impressa no fim. ${lead === 'claude' ? 'Use `run_in_background` no Bash para tarefas longas e leia o resultado quando terminar.' : 'Esse comando precisa rodar fora do sandbox (rede e pasta de eventos do DevFusion): peça a aprovação ao usuário quando a CLI solicitar.'} Escape aspas simples na tarefa${win ? ' e não use aspas duplas nela; escreva a pasta com barras normais (C:/…) e entre aspas' : ''}.`
       : '- Workers do Codex indisponíveis: o System Doctor não encontrou o Codex.',
     '',
     '## Memória',
@@ -178,7 +206,7 @@ export function prepareOrchestrator(ctx: OrchestratorContext): void {
 /** Argumentos oficiais do Claude Code como orquestrador. `statusLine` é mesclado no mesmo `--settings`. */
 export function claudeLeadArgs(ctx: OrchestratorContext, statusLine: Record<string, unknown> | null): string[] {
   const lead = ctx.settings.leadClaude;
-  const settings = { ...(statusLine ? { statusLine } : {}), hooks: claudeEventHooks(ctx.eventsDir) };
+  const settings = { ...(statusLine ? { statusLine } : {}), hooks: claudeEventHooks(ctx.eventsDir, ctx.platform) };
   return [
     '--model', lead.model, '--effort', lead.effort,
     '--agents', JSON.stringify(claudeWorkerAgents(ctx.settings)),
