@@ -43,6 +43,7 @@ import { probePty } from './terminal/ptyProbe';
 import { aiMemoryRunCommand } from './agents/aiMemory';
 import { claudeLeadArgs, codexLeadArgs, orchestratorPaths, prepareOrchestrator } from './orchestrator/DevOrchestrator';
 import { WorkerMonitor } from './orchestrator/WorkerMonitor';
+import { resolveSpend } from '@shared/spend';
 import { UpdateChecker } from './updates/UpdateChecker';
 import { configureExternalOpen, openExternalUrl, openLocalPath } from './system/externalOpen';
 import { runCommand } from './system/ProcessRunner';
@@ -186,16 +187,17 @@ if (!app.requestSingleInstanceLock()) {
       orchestratorArgs: (agent, cwd) => {
         if (process.platform === 'win32') throw new Error('O modo orquestrador ainda não está disponível no Windows nesta beta.');
         const s = settings.getAll();
+        const orch = resolveSpend(s.orchestrator);
         const ctx = {
-          settings: s.orchestrator, ...orchPaths, workspacePath: cwd,
+          settings: orch, ...orchPaths, workspacePath: cwd,
           codexPath: detector.locate('codex', s.cliPaths.codex).found?.path ?? null,
           aiMemoryPath: s.aiMemory.runAgents ? detector.locate('ai-memory').found?.path ?? null : null,
         };
         prepareOrchestrator(ctx);
-        workers.begin(agent, s.orchestrator);
-        const lead = agent === 'claude' ? s.orchestrator.leadClaude : s.orchestrator.leadCodex;
-        audit.record('orchestrator.start', agent, { model: lead.model, effort: lead.effort, aiMemory: Boolean(ctx.aiMemoryPath) });
-        log.info('Orquestrador iniciando', { lead: agent, model: lead.model, effort: lead.effort, codexWorkers: Boolean(ctx.codexPath), aiMemory: Boolean(ctx.aiMemoryPath) });
+        workers.begin(agent, orch);
+        const lead = agent === 'claude' ? orch.leadClaude : orch.leadCodex;
+        audit.record('orchestrator.start', agent, { model: lead.model, effort: lead.effort, spend: orch.spend, eco: orch.eco, aiMemory: Boolean(ctx.aiMemoryPath) });
+        log.info('Orquestrador iniciando', { lead: agent, model: lead.model, effort: lead.effort, spend: orch.spend, eco: orch.eco, codexWorkers: Boolean(ctx.codexPath), aiMemory: Boolean(ctx.aiMemoryPath) });
         return agent === 'claude' ? claudeLeadArgs(ctx, claudeUsage.statusLineSetting()) : codexLeadArgs(ctx);
       },
       onOrchestratorExit: (agent) => {

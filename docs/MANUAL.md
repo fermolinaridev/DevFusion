@@ -52,7 +52,8 @@ Clique em **Iniciar orquestrador** e diga o que precisa. Ele classifica cada tar
 
 Cada card mostra modelo, esforço, tarefa, status, tempo e o resultado. Workers do Codex podem ser parados um a um; **Parar tudo** encerra o orquestrador e todos os workers.
 
-- O roster (modelo e esforço por classe) e o limite de workers simultâneos ficam em **Configurações → Dev Orchestrator**.
+- **Gasto de tokens** (embaixo do Modo): Ultra baixo, Médio, Alto, Muito alto ou Ultra, e o botão **Eco**, que reduz o gasto em qualquer nível. Abra **Modelos neste nível** para ver o que cada tarefa vai usar. Nos níveis prontos, tarefa difícil usa modelo forte até no Ultra baixo.
+- O roster (modelo e esforço por classe, usado no nível Alto) e o limite de workers simultâneos ficam em **Configurações → Dev Orchestrator**.
 - Workers gastam a cota do seu plano.
 - Aprovações de permissão continuam com você, no terminal do orquestrador. Com o Codex como orquestrador, cada worker pede aprovação para rodar fora do sandbox.
 - Com o Codex como orquestrador, workers do Claude ficam desligados (decisão de termos do DevFusion).

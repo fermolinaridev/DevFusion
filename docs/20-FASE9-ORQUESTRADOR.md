@@ -86,6 +86,18 @@ Detalhes que vieram do teste real:
 - Com o Codex como orquestrador, o shell dele roda no sandbox; o script do worker precisa de rede e da pasta de eventos, então o Codex pede aprovação ao usuário para rodá-lo fora do sandbox.
 - Os eventos ficam em `<dados do app>/orchestrator/events` e são apagados ao iniciar uma nova sessão, porque contêm prompts.
 
+## Nível de gasto e modo Eco
+Pedido do usuário (2026-11-24): escolher quanto gastar de tokens ali mesmo, embaixo do Dev Orchestrator, sem abrir Configurações.
+
+- **Níveis**: Ultra baixo, Médio, Alto, Muito alto e Ultra. **Alto** (padrão) usa os modelos de Configurações; os outros são prontos (`src/shared/spend.ts`).
+- **Eco**: botão ao lado, vale por cima de qualquer nível. Trivial e rotina vão para os modelos mais leves, o orquestrador e a classe complexa descem um degrau de esforço (sem passar de médio), no máximo 2 workers ao mesmo tempo. A classe crítica não muda.
+- **Tarefa difícil usa modelo forte**: nos níveis prontos, complexa e crítica ficam em Opus 5.5 ou GPT-6.2-Astra. Em Alto, vale o que o usuário configurou.
+- O orquestrador recebe o nível nas instruções, com o roster já ajustado e a regra de que economia não rebaixa a classe da tarefa. Quem classifica continua sendo o agente oficial.
+- A escolha vale na próxima vez que o orquestrador iniciar e trava com sessão aberta.
+- No Windows a escolha aparece e fica salva, mas o modo orquestrador continua desligado.
+
+Testes: `tests/unit/spend.test.ts` e `tests/e2e/spend.spec.ts` (este roda também no Windows).
+
 ## Critérios de aceitação
 | # | Critério |
 |---|---|

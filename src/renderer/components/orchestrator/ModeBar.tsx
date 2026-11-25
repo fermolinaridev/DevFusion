@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { AGENT_IDS, AGENT_NAMES, type AgentId } from '@shared/agents';
 import { EFFORT_LABEL, modelLabel } from '@shared/orchestrator';
 import { useAgentStore } from '../../stores/agentStore';
+import { resolveSpend } from '@shared/spend';
 import { useAppStore } from '../../stores/appStore';
+import { SpendBar } from './SpendBar';
 
 /** Alterna entre agentes lado a lado e o Dev Orchestrator (Fase 9). */
 export function ModeBar() {
@@ -14,7 +16,8 @@ export function ModeBar() {
   const busy = AGENT_IDS.some((a) => sessions[a]?.status === 'running');
   const unsupported = platform === 'win32';
   const save = async (patch: Partial<typeof o>) => setError(await setSetting('orchestrator', { ...o, ...patch }));
-  const lead = (a: AgentId) => (a === 'claude' ? o.leadClaude : o.leadCodex);
+  const resolved = resolveSpend(o);
+  const lead = (a: AgentId) => (a === 'claude' ? resolved.leadClaude : resolved.leadCodex);
   const btn = (active: boolean) => `rounded px-2 py-0.5 ${active ? 'bg-accent text-accent-contrast' : 'hover:bg-surface-2'} disabled:opacity-50`;
   const lockTitle = busy ? 'Encerre as sessões abertas para trocar o modo.' : undefined;
   return (
@@ -34,6 +37,7 @@ export function ModeBar() {
           <span className="text-muted">Roster e limites em Configurações → Dev Orchestrator.</span>
         </>
       )}
+      <SpendBar settings={o} disabled={busy} disabledTitle={busy ? 'Encerre as sessões abertas para trocar o nível.' : undefined} unsupported={unsupported} onChange={(p) => void save(p)} />
       {error && <span role="alert" className="text-warn">{error}</span>}
     </div>
   );
