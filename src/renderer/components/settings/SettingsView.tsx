@@ -146,6 +146,7 @@ function OrchestratorFields() {
     <fieldset className="flex flex-col gap-2" data-testid="orchestrator-settings">
       <legend className="mb-1 text-muted">Dev Orchestrator</legend>
       <p className="text-xs text-muted">Um agente oficial (Claude Code ou Codex) faz o papel de gerente do projeto e dispara workers com o modelo e o esforço da classe de cada tarefa. O DevFusion só inicia as CLIs com flags oficiais e mostra os workers; aprovações continuam com você. Workers gastam a cota do seu plano. Vale para a próxima vez que o orquestrador iniciar.</p>
+      <p className="text-xs text-muted">Os modelos abaixo valem no nível de gasto <strong>Alto</strong>. Os outros níveis (barra acima dos agentes) usam modelos prontos, e o Eco reduz qualquer um deles.</p>
       <div className="grid grid-cols-[auto_1fr_1fr] items-center gap-x-2 gap-y-1 text-xs">
         <span className="text-muted">Orquestrador</span><span className="text-muted">Claude Code</span><span className="text-muted">Codex</span>
         <span>modelo · esforço</span>

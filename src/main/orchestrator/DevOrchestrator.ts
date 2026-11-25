@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AgentId } from '@shared/agentIds';
-import { EFFORT_LABEL, ORCH_TIERS, TIER_HINT, TIER_LABEL, modelLabel, type OrchTier, type OrchestratorSettings } from '@shared/orchestrator';
+import { EFFORT_LABEL, ORCH_TIERS, SPEND_HINT, SPEND_LABEL, TIER_HINT, TIER_LABEL, modelLabel, type OrchTier, type OrchestratorSettings } from '@shared/orchestrator';
 import { shellQuote } from '../usage/ClaudeStatuslineBridge';
 
 /**
@@ -15,6 +15,7 @@ import { shellQuote } from '../usage/ClaudeStatuslineBridge';
  * Quem decide e dispara é o agente; aprovações continuam no terminal do usuário.
  */
 export interface OrchestratorContext {
+  /** Já resolvida pelo nível de gasto e pelo Eco (`resolveSpend`). */
   settings: OrchestratorSettings;
   /** Pasta de eventos (hooks do Claude e arquivos dos workers do Codex). */
   eventsDir: string;
@@ -110,6 +111,19 @@ exit "$code"
 `;
 }
 
+/** O orquestrador vê o nível de gasto escolhido; o roster da tabela já está ajustado a ele. */
+function spendInstructions(s: OrchestratorSettings): string[] {
+  return [
+    '## Nível de gasto de tokens',
+    `- Nível escolhido pelo usuário: **${SPEND_LABEL[s.spend]}**. ${SPEND_HINT[s.spend]} Modo Eco: **${s.eco ? 'ligado' : 'desligado'}**.`,
+    '- O roster acima já está ajustado a esse nível. Escolha o worker pela dificuldade real da tarefa e não troque modelo nem esforço por conta própria.',
+    '- Economia nunca rebaixa a classe: tarefa difícil vai como complexa ou crítica mesmo no nível mais baixo ou com o Eco ligado.',
+    ...(s.eco ? [
+      '- Eco: use o mínimo de workers, mande só o contexto necessário, peça respostas curtas e não repita leitura ou teste já feito. Revisão cruzada só na classe crítica ou se o usuário pedir.',
+    ] : []),
+  ];
+}
+
 /** Instruções de gerente de projeto entregues ao orquestrador. */
 export function orchestratorInstructions(ctx: OrchestratorContext, lead: AgentId): string {
   const s = ctx.settings;
@@ -132,6 +146,8 @@ export function orchestratorInstructions(ctx: OrchestratorContext, lead: AgentId
     '| Classe | Exemplos | Worker Claude | Worker Codex |',
     '|---|---|---|---|',
     rows,
+    '',
+    ...spendInstructions(s),
     '',
     '## Como disparar',
     lead === 'claude'

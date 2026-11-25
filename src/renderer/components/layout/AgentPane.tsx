@@ -11,6 +11,7 @@ import { TerminalView, terminalSelection } from '../agents/TerminalView';
 import { OutboundDialog, type OutboundDraft } from '../chat/OutboundDialog';
 import { Button } from '../ui/Modal';
 import { EFFORT_LABEL, modelLabel } from '@shared/orchestrator';
+import { resolveSpend } from '@shared/spend';
 
 const COLOR: Record<AgentId, string> = { claude: 'text-claude', codex: 'text-codex' };
 const OTHER: Record<AgentId, AgentId> = { claude: 'codex', codex: 'claude' };
@@ -38,7 +39,8 @@ function statusLabel(info: AgentSessionInfo | undefined, installed: boolean | nu
 /** `orchestrator`: painel central do Dev Orchestrator (Fase 9) — a CLI inicia no papel de gerente. */
 export function AgentPane({ agent, orchestrator = false }: { agent: AgentId; orchestrator?: boolean }) {
   const orchSettings = useAppStore((s) => s.settings.orchestrator);
-  const leadSlot = agent === 'claude' ? orchSettings.leadClaude : orchSettings.leadCodex;
+  const orch = useMemo(() => resolveSpend(orchSettings), [orchSettings]);
+  const leadSlot = agent === 'claude' ? orch.leadClaude : orch.leadCodex;
   const report = useDoctorStore((s) => s.report);
   const info = useAgentStore((s) => s.sessions[agent]);
   const error = useAgentStore((s) => s.errors[agent]);

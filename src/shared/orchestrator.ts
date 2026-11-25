@@ -29,6 +29,18 @@ export const MODEL_LABEL: Record<string, string> = {
 };
 export const modelLabel = (m: string | null) => (m ? MODEL_LABEL[m] ?? m : 'modelo do orquestrador');
 
+/** Nível de gasto de tokens, escolhido na barra de modo. "alto" = modelos de Configurações. */
+export const SPEND_LEVELS = ['ultra-baixo', 'medio', 'alto', 'muito-alto', 'ultra'] as const;
+export type SpendLevel = (typeof SPEND_LEVELS)[number];
+export const SPEND_LABEL: Record<SpendLevel, string> = { 'ultra-baixo': 'Ultra baixo', medio: 'Médio', alto: 'Alto', 'muito-alto': 'Muito alto', ultra: 'Ultra' };
+export const SPEND_HINT: Record<SpendLevel, string> = {
+  'ultra-baixo': 'Modelos leves no que é simples; tarefa difícil ainda usa modelo forte.',
+  medio: 'Econômico no dia a dia, com um pouco mais de esforço.',
+  alto: 'Usa os modelos definidos em Configurações → Dev Orchestrator.',
+  'muito-alto': 'Modelos fortes já nas tarefas de rotina. Gasta bem mais.',
+  ultra: 'Esforço máximo no que é difícil. Gasta muito da cota.',
+};
+
 const effort = z.enum(EFFORTS);
 const claudeSlot = z.object({ model: z.enum(CLAUDE_MODELS), effort }).strict();
 const codexSlot = z.object({ model: z.enum(CODEX_MODELS), effort }).strict();
@@ -44,6 +56,10 @@ export const OrchestratorSettingsSchema = z.object({
   roster: z.object({ trivial: tierSlot, rotina: tierSlot, complexa: tierSlot, critica: tierSlot }).strict(),
   /** Workers do Codex rodando ao mesmo tempo (o script recusa acima disso). */
   maxParallel: z.number().int().min(1).max(6),
+  /** `default`: configurações salvas antes deste campo continuam válidas. */
+  spend: z.enum(SPEND_LEVELS).default('alto'),
+  /** Modo Eco: reduz o gasto por cima de qualquer nível. */
+  eco: z.boolean().default(false),
 }).strict();
 export type OrchestratorSettings = z.infer<typeof OrchestratorSettingsSchema>;
 
@@ -59,6 +75,8 @@ export const DEFAULT_ORCHESTRATOR: OrchestratorSettings = {
     critica: { claude: { model: 'claude-opus-5-5', effort: 'xhigh' }, codex: { model: 'gpt-6.2-astra', effort: 'xhigh' } },
   },
   maxParallel: 3,
+  spend: 'alto',
+  eco: false,
 };
 
 export type WorkerStatus = 'running' | 'completed' | 'failed' | 'stopped';
