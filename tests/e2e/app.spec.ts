@@ -42,7 +42,7 @@ test('renderer não tem acesso a Node e só vê a API mínima', async () => {
       frozen: Object.isFrozen(api),
     };
   });
-  expect(probe).toEqual({ require: 'undefined', process: 'undefined', ipcRenderer: 'undefined', electron: 'undefined', apiKeys: ['agents', 'app', 'chat', 'dashboard', 'diagnostics', 'docs', 'doctor', 'editor', 'git', 'history', 'installer', 'settings', 'tasks', 'terminal', 'updates', 'usage', 'workers', 'workspace', 'worktrees'], appKeys: ['getInfo'], settingsKeys: ['getAll', 'set'], frozen: true });
+  expect(probe).toEqual({ require: 'undefined', process: 'undefined', ipcRenderer: 'undefined', electron: 'undefined', apiKeys: ['agents', 'app', 'budget', 'chat', 'dashboard', 'diagnostics', 'docs', 'doctor', 'editor', 'git', 'history', 'installer', 'settings', 'tasks', 'terminal', 'updates', 'usage', 'workers', 'workspace', 'worktrees'], appKeys: ['getInfo'], settingsKeys: ['getAll', 'set'], frozen: true });
   await app.close();
 });
 

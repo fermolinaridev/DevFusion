@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises';
 import type { GitLocation, RepoStatus } from '@shared/git';
 import * as nodePty from 'node-pty';
 import { statfs } from 'node:fs/promises';
-import { isAbsolute, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import type { InstallMethod } from '@shared/doctor';
 import { IPC, IPC_EVENTS, type IpcEvent } from '@shared/ipcChannels';
 import type { AppInfo, IpcHandlers } from '@shared/ipcContracts';
@@ -22,7 +22,7 @@ import { GitOpError, WorktreeManager } from './workspace/WorktreeManager';
 import { readTextFile, writeTextFile } from './workspace/FileEditor';
 import { HistoryService } from './history/HistoryService';
 import { Notifier } from './system/Notifier';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { ClaudeStatuslineBridge } from './usage/ClaudeStatuslineBridge';
 import { readCodexUsage } from './usage/CodexUsageReader';
 import { UsageService } from './usage/UsageService';
@@ -44,6 +44,7 @@ import { aiMemoryRunCommand } from './agents/aiMemory';
 import { claudeLeadArgs, codexLeadArgs, orchestratorPaths, prepareOrchestrator } from './orchestrator/DevOrchestrator';
 import { WorkerMonitor } from './orchestrator/WorkerMonitor';
 import { resolveSpend } from '@shared/spend';
+import { WeeklyBudget } from './usage/WeeklyBudget';
 import { UpdateChecker } from './updates/UpdateChecker';
 import { configureExternalOpen, openExternalUrl, openLocalPath } from './system/externalOpen';
 import { runCommand } from './system/ProcessRunner';
@@ -191,10 +192,12 @@ if (!app.requestSingleInstanceLock()) {
         const orch = resolveSpend(s.orchestrator);
         const ctx = {
           settings: orch, ...orchPaths, workspacePath: cwd, shPath,
+          weeklyBudgetPercent: s.weeklyBudget.enabled ? s.weeklyBudget.percent : null,
           codexPath: detector.locate('codex', s.cliPaths.codex).found?.path ?? null,
           aiMemoryPath: s.aiMemory.runAgents ? detector.locate('ai-memory').found?.path ?? null : null,
         };
         prepareOrchestrator(ctx);
+        syncCodexBlock();
         workers.begin(agent, orch);
         const lead = agent === 'claude' ? orch.leadClaude : orch.leadCodex;
         audit.record('orchestrator.start', agent, { model: lead.model, effort: lead.effort, spend: orch.spend, eco: orch.eco, aiMemory: Boolean(ctx.aiMemoryPath) });
@@ -236,17 +239,45 @@ if (!app.requestSingleInstanceLock()) {
       },
     });
     agents = agentService;
+    // Limite de gasto semanal: só os números oficiais de uso decidem; nada é lido da saída dos agentes.
+    const budget: WeeklyBudget = new WeeklyBudget({
+      file: join(userData, 'usage', 'weekly-budget.json'),
+      settings: () => settings.getAll().weeklyBudget,
+      emit: (s) => { syncCodexBlock(); send(IPC_EVENTS.budget, s); },
+      onStop: (agent, reason, s) => {
+        const spent = s.providers[agent].spent;
+        audit.record('budget.stop', agent, { reason, spent, percent: s.percent });
+        log.info('Limite semanal: encerrando agente', { agent, reason, spent, percent: s.percent });
+        if (agent === 'codex') workers.stopAll();
+        // Login em andamento não gasta cota: só sessões de agente são encerradas.
+        const session = agentService.list().find((a) => a.agent === agent);
+        if (session?.status === 'running' && session.kind === 'agent') void agentService.stop(agent).catch((e) => log.error('Limite semanal: falha ao encerrar', e));
+        notifier.notify('usageHigh', `${agent === 'claude' ? 'Claude Code' : 'Codex'} parado pelo limite semanal`, `Usou ${spent}% dos ${s.percent}% que você liberou.`);
+      },
+    });
+    /** O script do worker do Codex consulta este arquivo: cobre workers disparados com o Claude como líder. */
+    function syncCodexBlock(): void {
+      try {
+        if (budget.blocked('codex')) { mkdirSync(dirname(orchPaths.codexBlockPath), { recursive: true }); writeFileSync(orchPaths.codexBlockPath, ''); }
+        else rmSync(orchPaths.codexBlockPath, { force: true });
+      } catch (e) { log.error('Limite semanal: falha ao atualizar o bloqueio do Codex', e); }
+    }
     const usageService = new UsageService({
       readCodex: () => readCodexUsage({ codexPath: () => detector.locate('codex', settings.getAll().cliPaths.codex).found?.path ?? null, env: () => detector.childEnv() }),
       claude: claudeUsage,
       emit: (report) => {
         send(IPC_EVENTS.usage, report);
+        budget.observe(report);
         for (const u of [report.claude, report.codex]) for (const w of u.windows) {
           if (u.status === 'ok' && w.usedPercent >= 90) notifier.notify('usageHigh', `${u.provider === 'claude' ? 'Claude' : 'Codex'}: ${w.usedPercent}% da janela ${w.label}`, w.resetsAt ? `Reinicia em ${new Date(w.resetsAt).toLocaleString()}.` : 'Reinício não informado.', `usage:${u.provider}:${w.windowMinutes}:${w.resetsAt}`);
         }
       },
     });
     usage = usageService;
+    // Com o limite ligado e o Codex trabalhando, a leitura de 5 min seria lenta demais para parar a tempo.
+    setInterval(() => {
+      if (settings.getAll().weeklyBudget.enabled && (agentService.isRunning('codex') || workers.hasRunning())) void usageService.refresh().catch(() => undefined);
+    }, 30_000).unref();
 
     const gitPath = () => detector.locate('git', settings.getAll().cliPaths.git).found?.path ?? null;
     const guard = new LoopGuard();
@@ -365,7 +396,12 @@ if (!app.requestSingleInstanceLock()) {
           ], 'Ligar');
           if (!ok) return settings.getAll();
         }
+        const budgetBefore = settings.getAll().weeklyBudget;
         const next = settings.set(key, value as never);
+        if (key === 'weeklyBudget') {
+          budget.settingsChanged(budgetBefore, usageService.report());
+          if (next.weeklyBudget.enabled) void usageService.refresh().catch(() => undefined);
+        }
         if (key === 'aiMemory') log.info('Integração ai-memory', { runAgents: next.aiMemory.runAgents });
         // Caminho de CLI alterado: revalida as ferramentas afetadas.
         if (key === 'cliPaths') void doctor.run(['git', 'claude', 'codex']);
@@ -398,6 +434,8 @@ if (!app.requestSingleInstanceLock()) {
       [IPC.agentsList]: () => agentService.list(),
       [IPC.agentStart]: async ({ agent, kind, cols, rows, permission, worktreeId, orchestrator }) => {
         try {
+          const limit = kind === 'agent' ? budget.blocked(agent) : null;
+          if (limit) return { ok: false, reason: limit };
           let at: { path: string; id: string; name: string } | undefined;
           if (worktreeId) { const ws = requireWs(); const info = await worktrees.get(ws, worktreeId); if (!info.present || info.status === 'removed') throw new GitOpError('Este worktree não está disponível.'); at = { path: worktrees.activePath(ws, worktreeId), id: worktreeId, name: info.name }; }
           return { ok: true, value: await agentService.start(agent, kind, cols, rows, permission, at, orchestrator) };
@@ -409,6 +447,8 @@ if (!app.requestSingleInstanceLock()) {
       [IPC.agentsStopAll]: async () => { audit.record('agents.stop-all', null, {}); workers.stopAll(); return agentService.stopAll(); },
       [IPC.workersList]: () => workers.snapshot(),
       [IPC.workersStop]: ({ id }) => { audit.record('orchestrator.worker-stop', id, {}); return workers.stopWorker(id); },
+      [IPC.budgetGet]: () => budget.state(),
+      [IPC.budgetRestart]: async () => { audit.record('budget.restart', null, {}); const r = budget.restart(usageService.report()); void usageService.refresh().catch(() => undefined); return r; },
       [IPC.terminalWrite]: ({ agent, data }) => agentService.terminals.write(agent, data),
       [IPC.terminalResize]: ({ agent, cols, rows }) => agentService.terminals.resize(agent, cols, rows),
       [IPC.terminalAck]: ({ agent, bytes }) => agentService.terminals.ack(agent, bytes),

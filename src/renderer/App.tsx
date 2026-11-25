@@ -23,6 +23,8 @@ import { useDoctorStore } from './stores/doctorStore';
 import { useWorkersStore } from './stores/workersStore';
 import { ModeBar } from './components/orchestrator/ModeBar';
 import { WorkersColumn } from './components/orchestrator/WorkersColumn';
+import { BudgetBar } from './components/usage/BudgetBar';
+import { useBudgetStore } from './stores/budgetStore';
 
 export function App() {
   const { status, error, settings, load, info } = useAppStore();
@@ -45,6 +47,8 @@ export function App() {
   useEffect(() => initGit(), [initGit]);
   const initWorkers = useWorkersStore((s) => s.init);
   useEffect(() => initWorkers(), [initWorkers]);
+  const initBudget = useBudgetStore((s) => s.init);
+  useEffect(() => initBudget(), [initBudget]);
   const orch = settings.orchestrator;
   const orchestratorMode = orch.enabled;
 
@@ -101,6 +105,7 @@ export function App() {
                           </Group>
                         )}
                       </div>
+                      <BudgetBar />
                     </div>
                     {activeTab !== 'agents' && <div className="absolute inset-0 bg-bg"><EditorView key={activeTab} tabKey={activeTab} /></div>}
                   </div>

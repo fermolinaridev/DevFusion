@@ -10,6 +10,7 @@ Todas as versões foram validadas no macOS (arm64). Windows e Linux passam a ser
   - O app só observa (hooks oficiais e arquivos de eventos) e mostra os cards. Parar tudo encerra o orquestrador e os workers.
 - ai-memory: `AI_MEMORY_AUTH_TOKEN` é repassado às CLIs quando o usuário o exporta (MCP do ai-memory no Codex). Workers do Codex passam por `ai-memory run` quando a integração está ligada.
 - **Nível de gasto de tokens** (Ultra baixo, Médio, Alto, Muito alto, Ultra) e botão **Eco** na barra de modo: mudam modelo e esforço por classe de tarefa e o orquestrador é informado do nível. Nos níveis prontos, tarefa complexa ou crítica continua em modelo forte.
+- **Limite de gasto semanal**: barra abaixo dos terminais para liberar uma parte da cota semanal por provedor. Ao chegar no limite, ou perto dele pelo ritmo recente, o agente é encerrado e não reinicia até aumentar ou recomeçar.
 - **Windows**: Dev Orchestrator disponível pelo Git Bash. Corrigidos o início do Claude instalado via npm ("Argumento com caractere não permitido para cmd.exe") e o uso do plano do Codex, que ficava em "Consultando…" (`spawn EINVAL`).
 - Teste real opcional do orquestrador (envia prompts): `DEVFUSION_REAL_TESTS=1 DEVFUSION_REAL_PROMPTS=1`.
 

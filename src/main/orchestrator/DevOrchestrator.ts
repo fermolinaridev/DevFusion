@@ -26,6 +26,10 @@ export interface OrchestratorContext {
   workspacePath: string;
   /** Windows: `sh.exe` do Git for Windows. Nas outras plataformas não é usado. */
   shPath?: string | null;
+  /** Enquanto este arquivo existir, o script recusa novos workers do Codex (limite semanal). */
+  codexBlockPath?: string;
+  /** Limite semanal ligado (pontos da cota); null = desligado. */
+  weeklyBudgetPercent?: number | null;
   /** Padrão: plataforma atual (injetável para testes). */
   platform?: NodeJS.Platform;
   /** Caminho validado do Codex (null = workers do Codex indisponíveis). */
@@ -85,7 +89,8 @@ CODEX=${q(ctx.codexPath ?? '')}
 AIMEM=${q(ctx.aiMemoryPath ?? '')}
 MAX=${ctx.settings.maxParallel}
 if [ $# -lt 3 ]; then echo "uso: sh $0 <trivial|rotina|complexa|critica> <pasta> <tarefa>" >&2; exit 2; fi
-if [ -z "$CODEX" ]; then echo "DevFusion: o Codex não foi encontrado pelo System Doctor." >&2; exit 2; fi
+${ctx.codexBlockPath ? `if [ -f ${q(ctx.codexBlockPath)} ]; then echo "DevFusion: limite semanal do Codex atingido. Não dispare novos workers do Codex; avise o usuário." >&2; exit 4; fi
+` : ''}if [ -z "$CODEX" ]; then echo "DevFusion: o Codex não foi encontrado pelo System Doctor." >&2; exit 2; fi
 tier=$1; dir=$2; shift 2; task=$*
 case "$tier" in
 ${cases}
@@ -136,7 +141,7 @@ exit "$code"
 }
 
 /** O orquestrador vê o nível de gasto escolhido; o roster da tabela já está ajustado a ele. */
-function spendInstructions(s: OrchestratorSettings): string[] {
+function spendInstructions(s: OrchestratorSettings, weeklyBudget: number | null): string[] {
   return [
     '## Nível de gasto de tokens',
     `- Nível escolhido pelo usuário: **${SPEND_LABEL[s.spend]}**. ${SPEND_HINT[s.spend]} Modo Eco: **${s.eco ? 'ligado' : 'desligado'}**.`,
@@ -144,6 +149,9 @@ function spendInstructions(s: OrchestratorSettings): string[] {
     '- Economia nunca rebaixa a classe: tarefa difícil vai como complexa ou crítica mesmo no nível mais baixo ou com o Eco ligado.',
     ...(s.eco ? [
       '- Eco: use o mínimo de workers, mande só o contexto necessário, peça respostas curtas e não repita leitura ou teste já feito. Revisão cruzada só na classe crítica ou se o usuário pedir.',
+    ] : []),
+    ...(weeklyBudget !== null ? [
+      `- Limite semanal: o usuário aceita gastar até ${weeklyBudget}% da cota semanal de cada provedor. O DevFusion encerra o agente ao chegar lá, sem aviso. Entregue em etapas pequenas e deixe o trabalho sempre num estado aproveitável.`,
     ] : []),
   ];
 }
@@ -175,7 +183,7 @@ export function orchestratorInstructions(ctx: OrchestratorContext, lead: AgentId
     '|---|---|---|---|',
     rows,
     '',
-    ...spendInstructions(s),
+    ...spendInstructions(s, ctx.weeklyBudgetPercent ?? null),
     '',
     '## Como disparar',
     lead === 'claude'
@@ -223,5 +231,5 @@ export function codexLeadArgs(ctx: OrchestratorContext): string[] {
 
 export const orchestratorPaths = (userData: string) => {
   const base = join(userData, 'orchestrator');
-  return { eventsDir: join(base, 'events'), scriptPath: join(base, 'devfusion-codex-worker.sh'), worktreesDir: join(base, 'worktrees') };
+  return { eventsDir: join(base, 'events'), scriptPath: join(base, 'devfusion-codex-worker.sh'), worktreesDir: join(base, 'worktrees'), codexBlockPath: join(base, 'codex.blocked') };
 };

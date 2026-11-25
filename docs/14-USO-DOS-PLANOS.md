@@ -31,3 +31,13 @@ Pedido do usuário (2026-11-20): mostrar o uso dos planos do Claude e do Codex, 
 - Windows: sem Node externo não há statusline do Claude (o atalho `ELECTRON_RUN_AS_NODE=1` é sintaxe POSIX). Não testado.
 - App Server do Codex é experimental: se o formato mudar, o card mostra "formato inesperado" em vez de números errados.
 - Empacotamento (Fase 8): se o fuse `RunAsNode` do Electron for desligado, o executor precisa ser o Node externo.
+
+## Limite de gasto semanal
+Pedido do usuário (2026-11-25): liberar uma parte da cota semanal e parar ao chegar lá (8% + 15% = para em 23%).
+
+- `src/main/usage/WeeklyBudget.ts` soma os aumentos da janela de 7 dias, por provedor, a partir de quando o limite foi ligado. A contagem fica em `usage/weekly-budget.json` e sobrevive a reinícios.
+- Para quando o gasto chega ao limite (`reached`) ou quando o gasto mais o maior passo recente passaria dele (`margin`, reserva de no máximo 5 pontos). Saltos entre leituras com mais de 10 minutos de distância não contam como ritmo.
+- Se a semana reinicia no meio, o gasto anterior continua na conta. Queda sem novo horário de reinício é tratada como correção da fonte.
+- Ao parar: encerra a sessão de agente daquele provedor (login não), os workers do Codex e bloqueia novos (`orchestrator/codex.blocked`, consultado pelo script do worker).
+- **Exceção registrada à regra "o app só exibe"**: aqui o app age, a pedido do usuário, com base apenas nos números oficiais de uso. Nunca lê a saída dos agentes nem envia texto a eles.
+- Teste real (2026-11-25, Windows 11): statusline do Claude entregou o uso semanal; o Codex foi lido pelo App Server; com o número simulado no limite, a sessão real do Claude foi encerrada, a do Codex continuou e um novo início foi recusado.

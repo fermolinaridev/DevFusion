@@ -42,6 +42,11 @@ O valor tem que ser igual à linha do arquivo em `SHA256SUMS.txt`.
 - **Tarefas desenvolvedor/revisor**, **Git Worktrees** (um branch por agente), **editor**, **histórico** e **uso dos planos**: veja a barra lateral. Atalhos: ⌘/Ctrl+Shift+/.
 - **Parar tudo** encerra os dois agentes e os processos filhos.
 
+- **Limite semanal** (abaixo dos terminais): ligue e escolha quanto da cota semanal aceita gastar, por exemplo 15%. Se a semana está em 8%, o agente para em 23%, ou um pouco antes se o ritmo recente indicar que o próximo passo passaria.
+  - Claude e Codex têm contas separadas. Ao atingir, só a sessão daquele agente é encerrada, e ela não inicia de novo até você aumentar o limite ou clicar em **Recomeçar**. Com o Codex no limite, o orquestrador também não dispara novos workers dele.
+  - A contagem começa quando você liga e continua ao reabrir o app. **Recomeçar** conta a partir do uso atual.
+  - Os números são os oficiais da conta inteira: gastos fora do DevFusion também contam. O do Claude chega depois da primeira resposta; o do Codex é lido a cada 30 segundos enquanto ele trabalha. Entre uma leitura e outra o gasto pode passar um pouco do limite.
+
 ## 4. Dev Orchestrator
 No topo da área dos agentes, escolha **Modo → Dev Orchestrator**. A tela vira três colunas:
 - **Esquerda**: agentes do Claude Code trabalhando.
