@@ -9,12 +9,10 @@ import { SpendBar } from './SpendBar';
 /** Alterna entre agentes lado a lado e o Dev Orchestrator (Fase 9). */
 export function ModeBar() {
   const o = useAppStore((s) => s.settings.orchestrator);
-  const platform = useAppStore((s) => s.info?.platform);
   const setSetting = useAppStore((s) => s.setSetting);
   const sessions = useAgentStore((s) => s.sessions);
   const [error, setError] = useState<string | null>(null);
   const busy = AGENT_IDS.some((a) => sessions[a]?.status === 'running');
-  const unsupported = platform === 'win32';
   const save = async (patch: Partial<typeof o>) => setError(await setSetting('orchestrator', { ...o, ...patch }));
   const resolved = resolveSpend(o);
   const lead = (a: AgentId) => (a === 'claude' ? resolved.leadClaude : resolved.leadCodex);
@@ -25,7 +23,7 @@ export function ModeBar() {
       <span className="text-muted">Modo</span>
       <div role="radiogroup" aria-label="Modo dos agentes" className="flex gap-1">
         <button role="radio" aria-checked={!o.enabled} className={btn(!o.enabled)} disabled={busy} title={lockTitle} onClick={() => void save({ enabled: false })} data-testid="mode-direct">Lado a lado</button>
-        <button role="radio" aria-checked={o.enabled} className={btn(o.enabled)} disabled={busy || unsupported} title={unsupported ? 'Ainda não disponível no Windows nesta beta.' : lockTitle} onClick={() => void save({ enabled: true })} data-testid="mode-orchestrator">Dev Orchestrator</button>
+        <button role="radio" aria-checked={o.enabled} className={btn(o.enabled)} disabled={busy} title={lockTitle} onClick={() => void save({ enabled: true })} data-testid="mode-orchestrator">Dev Orchestrator</button>
       </div>
       {o.enabled && (
         <>
@@ -37,7 +35,7 @@ export function ModeBar() {
           <span className="text-muted">Roster e limites em Configurações → Dev Orchestrator.</span>
         </>
       )}
-      <SpendBar settings={o} disabled={busy} disabledTitle={busy ? 'Encerre as sessões abertas para trocar o nível.' : undefined} unsupported={unsupported} onChange={(p) => void save(p)} />
+      <SpendBar settings={o} disabled={busy} disabledTitle={busy ? 'Encerre as sessões abertas para trocar o nível.' : undefined} onChange={(p) => void save(p)} />
       {error && <span role="alert" className="text-warn">{error}</span>}
     </div>
   );

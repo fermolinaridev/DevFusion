@@ -46,7 +46,7 @@ export function App() {
   const initWorkers = useWorkersStore((s) => s.init);
   useEffect(() => initWorkers(), [initWorkers]);
   const orch = settings.orchestrator;
-  const orchestratorMode = orch.enabled && info?.platform !== 'win32';
+  const orchestratorMode = orch.enabled;
 
   if (status === 'loading') {
     return <div className="flex h-full items-center justify-center text-muted" role="status">Carregando…</div>;

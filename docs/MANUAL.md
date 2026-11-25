@@ -42,7 +42,7 @@ O valor tem que ser igual à linha do arquivo em `SHA256SUMS.txt`.
 - **Tarefas desenvolvedor/revisor**, **Git Worktrees** (um branch por agente), **editor**, **histórico** e **uso dos planos**: veja a barra lateral. Atalhos: ⌘/Ctrl+Shift+/.
 - **Parar tudo** encerra os dois agentes e os processos filhos.
 
-## 4. Dev Orchestrator (macOS e Linux)
+## 4. Dev Orchestrator
 No topo da área dos agentes, escolha **Modo → Dev Orchestrator**. A tela vira três colunas:
 - **Esquerda**: agentes do Claude Code trabalhando.
 - **Centro**: o orquestrador, que é o Claude Code (Opus 5.5, esforço alto) ou o Codex (GPT-6.2-Astra, esforço alto), à sua escolha.
@@ -58,7 +58,7 @@ Cada card mostra modelo, esforço, tarefa, status, tempo e o resultado. Workers 
 - Aprovações de permissão continuam com você, no terminal do orquestrador. Com o Codex como orquestrador, cada worker pede aprovação para rodar fora do sandbox.
 - Com o Codex como orquestrador, workers do Claude ficam desligados (decisão de termos do DevFusion).
 - O orquestrador não faz commit, push nem merge sem você pedir. Trabalho em paralelo vai para worktrees separados, e integrar é decisão sua.
-- No Windows o modo ainda não está disponível.
+- No Windows, precisa do Git for Windows (Git Bash).
 
 ## 5. Memória compartilhada (opcional, ai-memory)
 O [ai-memory](https://github.com/akitaonrails/ai-memory) (projeto de terceiros) guarda a memória do trabalho num servidor local e permite que o Codex continue de onde o Claude parou.

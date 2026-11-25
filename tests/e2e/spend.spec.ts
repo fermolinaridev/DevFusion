@@ -43,8 +43,12 @@ test('nível de gasto e Eco: escolha visível, tabela de modelos acompanha e fic
   await expect(page.getByTestId('spend-row-trivial')).toContainText('Haiku 5.5 (baixo)');
   await expect(page.getByTestId('spend-row-critica')).toContainText('Opus 5.5 (máximo)');
   await expect(page.getByTestId('spend-summary')).toContainText('até 2 workers');
-  if (process.platform === 'win32') await expect(page.getByTestId('spend-unsupported')).toBeVisible();
-  else await expect(page.getByTestId('spend-unsupported')).toHaveCount(0);
+  // O modo pode ser escolhido em todas as plataformas, inclusive no Windows.
+  await expect(page.getByTestId('mode-orchestrator')).toBeEnabled();
+  await page.getByTestId('mode-orchestrator').click();
+  await expect(page.getByTestId('workers-claude')).toBeVisible();
+  await expect(page.getByTestId('orchestrator-pane')).toBeVisible();
+  await expect(page.getByTestId('workers-codex')).toBeVisible();
   if (process.env['DEVFUSION_SHOT']) await page.screenshot({ path: process.env['DEVFUSION_SHOT'] });
   await app.close();
 

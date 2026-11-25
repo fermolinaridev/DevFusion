@@ -51,6 +51,6 @@ Causas do caso do Codex:
 ## Limitações
 - Teste real feito só no macOS. Alternar Claude → Codex depende de dois passos manuais: confiar nos hooks na TUI do Codex e exportar `AI_MEMORY_AUTH_TOKEN` no ambiente de onde o DevFusion é aberto.
 - Com o Dev Orchestrator ([20-FASE9-ORQUESTRADOR.md](20-FASE9-ORQUESTRADOR.md)), os workers do Codex também passam por `ai-memory run` quando a integração está ligada.
-- Windows nativo é experimental no próprio ai-memory; com o Claude instalado via npm (`claude.cmd`) o `--executable` aponta para um `.cmd`.
+- Windows nativo é experimental no próprio ai-memory. O `--executable` recebe o executável oficial, mesmo com as CLIs instaladas via npm.
 - Worktrees: o ai-memory identifica a workstream pelo checkout; cada worktree do DevFusion é uma workstream própria.
 - O DevFusion não mostra o conteúdo da memória; use o `/web` ou os arquivos markdown do ai-memory.

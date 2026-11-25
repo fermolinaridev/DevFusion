@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { z } from 'zod';
 import { windowLabel, type ProviderUsage, type UsageWindow } from '@shared/usage';
-import { killTree } from '../system/ProcessRunner';
+import { buildSpawnSpec, killTree } from '../system/ProcessRunner';
 
 /**
  * Únicos métodos JSON-RPC que o DevFusion envia ao App Server do Codex.
@@ -37,7 +37,9 @@ export async function readCodexUsage(opts: CodexReaderOptions): Promise<Provider
   const codex = opts.codexPath();
   if (!codex) return { ...base, note: 'Codex não encontrado.' };
 
-  const child = spawn(codex, ['app-server'], { env: opts.env(), stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, detached: process.platform !== 'win32' });
+  const env = opts.env();
+  const spec = buildSpawnSpec(codex, ['app-server'], process.platform, env);
+  const child = spawn(spec.file, spec.args, { env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, windowsVerbatimArguments: spec.verbatim, detached: process.platform !== 'win32' });
   let nextId = 1;
   let buf = '';
   const pending = new Map<number, (m: { result?: unknown; error?: { message?: string } }) => void>();

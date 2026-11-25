@@ -185,11 +185,12 @@ if (!app.requestSingleInstanceLock()) {
     const agentService = new AgentService({
       extraAgentArgs: { claude: () => claudeUsage.settingsArgs() },
       orchestratorArgs: (agent, cwd) => {
-        if (process.platform === 'win32') throw new Error('O modo orquestrador ainda não está disponível no Windows nesta beta.');
         const s = settings.getAll();
+        const shPath = detector.locateSh(s.cliPaths.git);
+        if (!shPath) throw new Error('O Dev Orchestrator precisa do Git for Windows (Git Bash). Instale o Git pelo System Doctor e tente de novo.');
         const orch = resolveSpend(s.orchestrator);
         const ctx = {
-          settings: orch, ...orchPaths, workspacePath: cwd,
+          settings: orch, ...orchPaths, workspacePath: cwd, shPath,
           codexPath: detector.locate('codex', s.cliPaths.codex).found?.path ?? null,
           aiMemoryPath: s.aiMemory.runAgents ? detector.locate('ai-memory').found?.path ?? null : null,
         };

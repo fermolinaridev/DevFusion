@@ -7,7 +7,7 @@ import { FakeToolDir, SPECS } from '../helpers/fakeTools';
 import { addFakeCodexWithExec } from '../helpers/fakeCodexExec';
 import { launch, passOnboarding, stubOpenDialog } from './launch';
 
-test.skip(process.platform === 'win32', 'Dev Orchestrator ainda não disponível no Windows');
+test.skip(process.platform === 'win32', 'CLIs falsas dos E2E ainda não validadas no Windows');
 
 let dir: string; let tools: FakeToolDir; let ws: string; let argvLog: string;
 test.beforeEach(() => {

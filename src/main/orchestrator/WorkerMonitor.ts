@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
 import { join } from 'node:path';
 import type { AgentId } from '@shared/agentIds';
+import { killTree } from '../system/ProcessRunner';
 import { ORCH_TIERS, type Effort, type OrchTier, type OrchestratorSettings, type WorkerInfo, type WorkersSnapshot } from '@shared/orchestrator';
 
 const MAX_TEXT = 4000;
@@ -16,6 +17,8 @@ export interface WorkerMonitorDeps {
   alive?: (pid: number) => boolean;
   kill?: (pid: number, signal: NodeJS.Signals) => void;
   log?: { warn: (m: string, meta?: unknown) => void };
+  /** Padrão: plataforma atual. */
+  platform?: NodeJS.Platform;
 }
 
 /**
@@ -34,10 +37,13 @@ export class WorkerMonitor {
   private last = '';
   private readonly alive: (pid: number) => boolean;
   private readonly kill: (pid: number, signal: NodeJS.Signals) => void;
+  private readonly win: boolean;
 
   constructor(private readonly deps: WorkerMonitorDeps) {
     this.alive = deps.alive ?? ((pid) => { try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === 'EPERM'; } });
-    this.kill = deps.kill ?? ((pid, sig) => process.kill(pid, sig));
+    this.win = (deps.platform ?? process.platform) === 'win32';
+    // Windows não tem grupos de processos: taskkill /T encerra o worker e os filhos.
+    this.kill = deps.kill ?? ((pid, sig) => { if (this.win) killTree(pid); else process.kill(pid, sig); });
   }
 
   /** Nova sessão do orquestrador: limpa eventos antigos (contêm prompts) e começa a observar. */
@@ -197,7 +203,7 @@ export class WorkerMonitor {
     return {
       id, provider: 'codex', tier: tierOf(tierS), name: 'codex exec', model: model ?? null, effort: (effort as Effort) ?? null,
       task: clip(this.read(id, 'task') ?? '', 600), status, activity, output: clip((errTail ?? '') || (last ?? lastMessage ?? '').trim()) || null,
-      startedAt, endedAt, tokens, cwd: dir ? this.deps.shorten(dir) : null,
+      startedAt, endedAt, tokens, cwd: dir ? this.deps.shorten(this.win ? dir.replace(/\//g, '\\') : dir) : null,
     };
   }
 
@@ -206,8 +212,9 @@ export class WorkerMonitor {
     const pid = Number(this.read(id, 'pid') ?? NaN);
     if (!Number.isFinite(pid) || this.read(id, 'exit') !== null) return false;
     writeFileSync(join(this.deps.eventsDir, `${id}.stopped`), new Date().toISOString());
-    for (const target of [-pid, pid]) { try { this.kill(target, 'SIGTERM'); } catch { /* já encerrado */ } }
-    const t = setTimeout(() => { for (const target of [-pid, pid]) { try { if (this.alive(pid)) this.kill(target, 'SIGKILL'); } catch { /* ok */ } } this.refresh(); }, 2000);
+    const targets = this.win ? [pid] : [-pid, pid];
+    for (const target of targets) { try { this.kill(target, 'SIGTERM'); } catch { /* já encerrado */ } }
+    const t = setTimeout(() => { for (const target of targets) { try { if (this.alive(pid)) this.kill(target, 'SIGKILL'); } catch { /* ok */ } } this.refresh(); }, 2000);
     t.unref();
     this.refresh();
     return true;

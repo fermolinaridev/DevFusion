@@ -1,6 +1,6 @@
 # Fase 9 — Dev Orchestrator
 
-Status: **implementada no macOS** (Linux pelo mesmo código POSIX, a validar no CI; Windows ainda não suportado) · Pedido do usuário (2026-11-21): um orquestrador no meio que distribui tarefas para agentes do Claude Code e do Codex, escolhendo modelo e esforço conforme a tarefa. Claude à esquerda, Codex à direita, tudo com o ai-memory.
+Status: **implementada no macOS** (Linux pelo mesmo código POSIX, a validar no CI; Windows pelo Git Bash, ver § Windows) · Pedido do usuário (2026-11-21): um orquestrador no meio que distribui tarefas para agentes do Claude Code e do Codex, escolhendo modelo e esforço conforme a tarefa. Claude à esquerda, Codex à direita, tudo com o ai-memory.
 
 ## Decisões do usuário
 1. **Quem orquestra é um agente oficial**, não o DevFusion. O painel central é uma sessão interativa da CLI oficial:
@@ -94,9 +94,15 @@ Pedido do usuário (2026-11-24): escolher quanto gastar de tokens ali mesmo, emb
 - **Tarefa difícil usa modelo forte**: nos níveis prontos, complexa e crítica ficam em Opus 5.5 ou GPT-6.2-Astra. Em Alto, vale o que o usuário configurou.
 - O orquestrador recebe o nível nas instruções, com o roster já ajustado e a regra de que economia não rebaixa a classe da tarefa. Quem classifica continua sendo o agente oficial.
 - A escolha vale na próxima vez que o orquestrador iniciar e trava com sessão aberta.
-- No Windows a escolha aparece e fica salva, mas o modo orquestrador continua desligado.
 
 Testes: `tests/unit/spend.test.ts` e `tests/e2e/spend.spec.ts` (este roda também no Windows).
+
+## Windows
+- O script do worker e os hooks rodam no **Git Bash** (o Claude Code também o usa). Sem o Git for Windows, o app explica e não inicia o orquestrador.
+- Caminhos vão com barras normais (`C:/…`). O worker grava o PID do Windows, e Parar usa `taskkill /T /F` no lugar de grupos de processos.
+- `claude.cmd` e `codex.cmd` do npm são trocados pelo executável oficial do mesmo pacote: pelo cmd.exe não dá para passar com segurança argumentos com aspas (`--settings`, `--agents`). Era a causa de "Argumento com caractere não permitido para cmd.exe" ao iniciar o Claude.
+- **Teste real (2026-11-25, Windows 11, Claude Code 2.1.331, Codex 0.172.0)**: o líder Claude delegou a tarefa trivial a um subagente (Sonnet 5.5 baixo, bug corrigido) e disparou um worker do Codex (GPT-6.2-Sol baixo), os dois vistos pelo app.
+- Os E2E com CLIs falsas continuam só no macOS/Linux; no Windows rodam os unitários do script, do monitor e do Parar tudo.
 
 ## Critérios de aceitação
 | # | Critério |
@@ -123,7 +129,7 @@ Testes: `tests/unit/spend.test.ts` e `tests/e2e/spend.spec.ts` (este roda també
 | O8 | ✅ | 9 unitários novos do orquestrador + 1 de ambiente (token do ai-memory), 2 E2E novos, 1 teste real opcional (`DEVFUSION_REAL_TESTS=1 DEVFUSION_REAL_PROMPTS=1`, envia prompts). Totais locais: **146 unitários**, **44 E2E**, 3 testes do app empacotado (Fase 8) e 1 teste real do orquestrador. |
 
 ## Riscos e limitações conhecidas
-- **Windows**: modo orquestrador desligado nesta beta (o script do worker é POSIX e o encerramento usa grupos de processos).
+- **Windows**: exige Git for Windows. O líder Codex inicia, mas o disparo de um worker por ele (PowerShell → Git Bash) ainda não foi testado com prompt real.
 - Os workers do Codex rodam com `-s workspace-write` (sandbox oficial). Os subagentes do Claude seguem as permissões da sessão do orquestrador.
 - O roster usa nomes de modelo conferidos nesta máquina em 2026-11-21. Se um provedor renomear um modelo, a CLI recusa e o erro aparece no card ou no terminal.
 - Workers custam cota do plano. A skill limita a concorrência (padrão: 3) e prefere o worker mais barato que resolve.
